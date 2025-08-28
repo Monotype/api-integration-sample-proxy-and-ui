@@ -22,7 +22,7 @@ A Node.js Express server that implements OAuth 2.0 with Authorization Code flow,
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd authorizationCode
+cd api-integration-sample-proxy-and-ui
 ```
 
 2. Install dependencies:
@@ -35,8 +35,10 @@ npm install
 # Copy the example environment file
 cp .env.example .env
 
-# Edit .env and add your Auth0 client secret
+# Edit .env and add your Auth0 client id, Auth0 secret, and session secret
 # AUTH0_CLIENT_SECRET=your_actual_client_secret_here
+# AUTH0_CLIENT_ID=your_auth0_client_id_here
+# SESSION_SECRET=your_session_secret_here # openssl rand -hex 64
 ```
 
 4. Start Redis server:
