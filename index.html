@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authorization Code OAuth Example</title>
+    <style>
+    </style>
+</head>
+
+<body>
+    <h1>Authorization Code Flow Demo</h1>
+    <div id="description">
+    </div>
+
+    <button id="next">Authorize my plugin</button>
+    <div id="query-holder" style="display: none;">
+
+        <textarea id="query" rows="10" cols="30">
+{
+    "pageSize": 50,
+    "pageNumber": 4,
+    "sort": {
+        "field": "weight",
+        "direction": "ASC"
+    }
+}
+        </textarea><br>
+        <select id="method-select">
+            <option value="POST" selected>POST</option>
+            <option value="GET">GET</option>
+            <option value="PUT">PUT</option>
+            <option value="DELETE">DELETE</option>
+        </select>
+        <br>
+        <input type="text" id="endpoint-input" value="/v1/fonts/search" style="width: 200px;"><br>
+        <button id="query-btn">Query Fonts</button>
+        <div id="info-div"></div>
+    </div>
+    <script>
+        let currentStep = 0;
+        const steps = ["authorize", "get_fonts"];
+        const AUTH0_REDIRECT_URI = window.location.origin + window.location.pathname;
+
+        const nextButton = document.getElementById('next');
+        const queryButton = document.getElementById('query-btn');
+        const queryText = document.getElementById('query');
+        const queryHolder = document.getElementById('query-holder');
+        const profileElement = document.getElementById('profile');
+        const endpointInput = document.getElementById('endpoint-input');
+        const methodSelect = document.getElementById('method-select');
+
+        // Get query params from URL
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                code: params.get('code'),
+                state: params.get('state')
+            };
+        }
+
+        // Redirect to Auth0 login
+        function redirectToLogin() {
+            const authUrl = `/api/authorize?redirect_uri=${encodeURIComponent(AUTH0_REDIRECT_URI)}`;
+            window.location.href = authUrl;
+        }
+
+        // Exchange authorization code for access and ID tokens
+        async function exchangeCodeForTokens(code) {
+            const tokenUrl = `/api/token`;
+            const body = {
+                code: code,
+                redirect_uri: AUTH0_REDIRECT_URI
+            };
+            const formBody = new URLSearchParams(body).toString();
+            const response = await fetch(tokenUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: formBody
+            });
+
+            const result = await response.json();
+            console.log('Token exchange result:', result);
+            return result;
+        }
+
+        // Handle logout
+        function logout() {
+            fetch('/api/logout', { method: 'POST' })
+                .then(() => {
+                    currentStep = 0;
+                    nextButton.style.display = 'block';
+                    queryHolder.style.display = 'none';
+                });
+        }
+
+        // Main logic to handle page load and token exchange
+        async function main() {
+            const { code } = getQueryParams();
+
+            if (code) {
+                currentStep = 1;
+                nextButton.style.display = 'none';
+                queryHolder.style.display = 'block';
+                await exchangeCodeForTokens(code);
+                window.history.replaceState({}, document.title, window.location.pathname); // Clean up URL
+            }
+        }
+
+        async function makeAPIRequest() {
+            const infoDiv = document.getElementById('info-div');
+            infoDiv.innerHTML = "";
+            const data = JSON.parse(document.getElementById("query").value);
+
+            // Send the request using fetch
+            const config = {
+                method: methodSelect.value,
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (methodSelect.value !== 'GET') {
+                config.body = JSON.stringify(data);
+            }
+
+            const response = await fetch(`/api/proxy${endpointInput.value}`, config);
+            const result = await response.json();
+
+            // Check if the response has an authentication error
+            if (result.error === "Not authenticated") {
+                currentStep = 0;
+                nextButton.style.display = 'block';
+                queryHolder.style.display = 'none';
+                return;
+            }
+
+            const formattedJson = JSON.stringify(result, null, 4);
+            infoDiv.innerHTML = "<pre>" + formattedJson + "</pre>";
+        }
+
+        async function nextStep() {
+            console.log("next step", steps[currentStep]);
+            switch (steps[currentStep]) {
+                case "authorize":
+                    redirectToLogin();
+                    break;
+                case "get_fonts":
+                    makeAPIRequest();
+                    break;
+            }
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+            }
+        }
+        nextButton.addEventListener('click', nextStep);
+        queryButton.addEventListener('click', nextStep);
+
+        main();
+    </script>
+</body>
+
+</html>

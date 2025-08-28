@@ -1,0 +1,17 @@
+{
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs",
+    "dev": "nodemon index.mjs"
+  },
+  "dependencies": {
+    "connect-redis": "^9.0.0",
+    "dotenv": "^16.0.3",
+    "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.10",
+    "redis": "^5.6.1"
+  }
+}
