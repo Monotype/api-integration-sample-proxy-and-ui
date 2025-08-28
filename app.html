@@ -521,10 +521,35 @@
                         <span class="nav-item-icon">🏠</span>
                         <span>Home</span>
                     </button>
-                    <button class="nav-item" data-view="browse">
+                    <button class="nav-item" id="browse-fonts-link" data-view="browse">
                         <span class="nav-item-icon">🔍</span>
                         <span>Browse Fonts</span>
                     </button>
+                    <div id="font-search-form-container" style="display:none;padding:16px 20px 0 20px;">
+                        <form id="font-search-form">
+                            <label for="font-name"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Font
+                                Name</label>
+                            <input id="font-name" name="font-name" type="text" style="width:100%;margin-bottom:12px;">
+                            <label for="font-classification"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Classification
+                            </label>
+                            <select id="font-classification" name="font-classification"
+                                style="width:100%;margin-bottom:12px;"></select>
+                            <label for="font-tags"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Tags
+                            </label>
+                            <select id="font-tags" name="font-tags" style="width:100%;margin-bottom:12px;"></select>
+                            <label for="font-languages"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Languages</label>
+                            <select id="font-languages" name="font-languages"
+                                style="width:100%;margin-bottom:12px;"></select>
+                            <button type="submit"
+                                style="background:#3498db;color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:bold;">
+                                Search
+                            </button>
+                        </form>
+                    </div>
                 </div>
                 <div class="nav-section">
                     <div class="nav-section-title">Collections</div>
@@ -1361,10 +1386,181 @@
         const errorLogoutBtn = document.getElementById('error-logout-btn');
         errorLogoutBtn.addEventListener('click', logout);
 
+        // Browse Fonts toggle
+        const browseFontsLink = document.getElementById('browse-fonts-link');
+        const fontSearchFormContainer = document.getElementById('font-search-form-container');
+        browseFontsLink.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (fontSearchFormContainer.style.display === 'none') {
+                fontSearchFormContainer.style.display = 'block';
+                // Always repopulate filters when showing the form
+                populateFontFilters();
+                // Show search results if present
+                const searchFolder = document.getElementById('search-results-folder');
+                if (searchFolder) searchFolder.style.display = '';
+                const searchFontsContainer = document.getElementById('search-results-fonts');
+                if (searchFontsContainer) searchFontsContainer.style.display = '';
+            } else {
+                fontSearchFormContainer.style.display = 'none';
+                // Hide search results if present
+                const searchFolder = document.getElementById('search-results-folder');
+                if (searchFolder) {
+                    searchFolder.style.display = 'none';
+                    // Update count to zero
+                    const countSpan = searchFolder.querySelector('.folder-count');
+                    if (countSpan) countSpan.textContent = '0';
+                }
+                const searchFontsContainer = document.getElementById('search-results-fonts');
+                if (searchFontsContainer) searchFontsContainer.style.display = 'none';
+                // Also hide any font items from search
+                const foldersList = document.getElementById('folders-list');
+                if (foldersList) {
+                    Array.from(foldersList.querySelectorAll('.font-item[data-asset-type="SearchResult"]')).forEach(item => {
+                        item.style.display = 'none';
+                    });
+                }
+            }
+        });
+
+        // Font search form submission
+        const fontSearchForm = document.getElementById('font-search-form');
+        fontSearchForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            // Remove previous search results folder and font items if present
+            const prevSearchFolder = document.getElementById('search-results-folder');
+            if (prevSearchFolder) prevSearchFolder.remove();
+            const prevSearchFontsContainer = document.getElementById('search-results-fonts');
+            if (prevSearchFontsContainer) prevSearchFontsContainer.remove();
+            const name = document.getElementById('font-name').value.trim();
+            const classification = document.getElementById('font-classification').value.trim();
+            const tags = document.getElementById('font-tags').value.trim();
+            const languages = document.getElementById('font-languages').value.trim();
+            // Convert comma or space separated values to arrays
+            const tagArr = tags ? tags.split(/[, ]+/).filter(Boolean) : undefined;
+            const classificationArr = classification ? classification.split(/[, ]+/).filter(Boolean) : undefined;
+            const languageArr = languages ? languages.split(/[, ]+/).filter(Boolean) : undefined;
+            // Build payload
+            const payload = {
+                pageSize: 20,
+                pageNumber: 1
+            };
+            if (name) payload.name = name;
+            if (tagArr) payload.tag = tagArr;
+            if (classificationArr) payload.classification = classificationArr;
+            if (languageArr) payload.languages = languageArr;
+            if (name) {
+                payload.searchSettings = { partial: ["name"] };
+            }
+            try {
+                const response = await fetch('/api/proxy/v1/fonts/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                // Display search results as a folder in the collections section
+                const foldersList = document.getElementById('folders-list');
+                // Remove previous search results folder if present
+                const prevSearchFolder = document.getElementById('search-results-folder');
+                if (prevSearchFolder) prevSearchFolder.remove();
+                // Create search results folder
+                const searchFolder = document.createElement('div');
+                searchFolder.className = 'folder-item has-children';
+                searchFolder.id = 'search-results-folder';
+                searchFolder.innerHTML = `<span><span class="folder-expand-icon">▶</span>🔍 Search Results</span><span class="folder-count">${result.fonts ? result.fonts.length : 0}</span>`;
+                foldersList.prepend(searchFolder);
+                // Create container for font links
+                const searchFontsContainer = document.createElement('div');
+                searchFontsContainer.className = 'sub-folders expanded';
+                searchFontsContainer.id = 'search-results-fonts';
+                searchFolder.after(searchFontsContainer);
+                // Create font links for each result
+                if (result.fonts && result.fonts.length) {
+                    result.fonts.forEach((font, idx) => {
+                        const fontItem = document.createElement('div');
+                        fontItem.className = 'collection-item font-item';
+                        fontItem.dataset.assetId = font.fontId || font.id;
+                        fontItem.dataset.assetType = 'SearchResult';
+                        const fontLink = document.createElement('div');
+                        fontLink.className = 'collection-link';
+                        const fontIcon = document.createElement('span');
+                        fontIcon.className = 'icon';
+                        fontIcon.innerHTML = '📝';
+                        const fontName = document.createElement('span');
+                        fontName.className = 'name';
+                        fontName.textContent = font.name || font.friendlyName || `Font ${idx + 1}`;
+                        fontLink.appendChild(fontIcon);
+                        fontLink.appendChild(fontName);
+                        fontItem.appendChild(fontLink);
+                        fontLink.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Remove selection from other fonts
+                            foldersList.querySelectorAll('.font-item').forEach(item => {
+                                item.classList.remove('selected');
+                            });
+                            fontItem.classList.add('selected');
+                            const fontId = font.fontId || font.id;
+                            await showFontDetails(fontId, font.name || font.friendlyName);
+                        });
+                        searchFontsContainer.appendChild(fontItem);
+                    });
+                }
+                // Expand/collapse logic for search results folder
+                searchFolder.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const expandIcon = searchFolder.querySelector('.folder-expand-icon');
+                    const isExpanded = searchFontsContainer.classList.contains('expanded');
+                    if (isExpanded) {
+                        searchFontsContainer.classList.remove('expanded');
+                        expandIcon.classList.remove('expanded');
+                        searchFontsContainer.style.maxHeight = '0';
+                    } else {
+                        searchFontsContainer.classList.add('expanded');
+                        expandIcon.classList.add('expanded');
+                        searchFontsContainer.style.maxHeight = '500px';
+                    }
+                });
+            } catch (err) {
+                alert('Font search failed: ' + err.message);
+            }
+        });
+
+        // Add this after DOMContentLoaded or at the end of your script
+        async function populateFontFilters() {
+            try {
+                const response = await fetch('/api/proxy/v1/fonts/filterslookup?lookup=classification&lookup=language&lookup=tags', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                const result = await response.json();
+                // Populate dropdowns
+                const classificationSelect = document.getElementById('font-classification');
+                const tagsSelect = document.getElementById('font-tags');
+                const languagesSelect = document.getElementById('font-languages');
+                if (result.classification && Array.isArray(result.classification)) {
+                    classificationSelect.innerHTML = '<option value="">Any</option>' + result.classification.map(c => `<option value="${c}">${c}</option>`).join('');
+                }
+                if (result.tags && Array.isArray(result.tags)) {
+                    tagsSelect.innerHTML = '<option value="">Any</option>' + result.tags.map(t => `<option value="${t}">${t}</option>`).join('');
+                }
+                if (result.language && Array.isArray(result.language)) {
+                    languagesSelect.innerHTML = '<option value="">Any</option>' + result.language.map(l => `<option value="${l}">${l}</option>`).join('');
+                }
+            } catch (err) {
+                console.error('Failed to load font filters:', err);
+            }
+        }
+        document.addEventListener('DOMContentLoaded', populateFontFilters);
+
         // Main initialization
         async function main() {
             const { code } = getQueryParams();
-
             if (code) {
                 // User returned from OAuth provider
                 await exchangeCodeForTokens(code);
@@ -1374,10 +1570,8 @@
                 try {
                     authStep = 'loading';
                     updateLoginUI();
-
                     const response = await fetch('/api/session');
                     const sessionData = await response.json();
-
                     if (sessionData.authenticated && sessionData.hasValidTokens) {
                         isAuthenticated = true;
                         showStatus('Existing session found. Loading your collections...', 'info');
@@ -1395,7 +1589,6 @@
                 }
             }
         }
-
         // Start the application
         main();
     </script>
