@@ -535,17 +535,23 @@
                                 style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Classification
                             </label>
                             <select id="font-classification" name="font-classification"
-                                style="width:100%;margin-bottom:12px;"></select>
+                                style="width:100%;margin-bottom:12px;">
+                                <option>Loading...</option>
+                            </select>
                             <label for="font-tags"
                                 style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Tags
                             </label>
-                            <select id="font-tags" name="font-tags" style="width:100%;margin-bottom:12px;"></select>
+                            <select id="font-tags" name="font-tags" style="width:100%;margin-bottom:12px;">
+                                <option>Loading...</option>
+                            </select>
                             <label for="font-languages"
                                 style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Languages</label>
-                            <select id="font-languages" name="font-languages"
-                                style="width:100%;margin-bottom:12px;"></select>
-                            <button type="submit"
-                                style="background:#3498db;color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:bold;">
+                            <select id="font-languages" name="font-languages" style="width:100%;margin-bottom:12px;">
+                                <option>Loading...</option>
+                            </select>
+                            <button id="font-search-btn" type="submit"
+                                style="background:#3498db;color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:bold;"
+                                disabled>
                                 Search
                             </button>
                         </form>
@@ -1543,14 +1549,29 @@
                 const classificationSelect = document.getElementById('font-classification');
                 const tagsSelect = document.getElementById('font-tags');
                 const languagesSelect = document.getElementById('font-languages');
+                const searchBtn = document.getElementById('font-search-btn');
+                // Show loading state
+                classificationSelect.innerHTML = '<option>Loading...</option>';
+                tagsSelect.innerHTML = '<option>Loading...</option>';
+                languagesSelect.innerHTML = '<option>Loading...</option>';
+                searchBtn.disabled = true;
+                let loadedCount = 0;
+                // Populate dropdowns using correct keys from API response
                 if (result.classification && Array.isArray(result.classification)) {
                     classificationSelect.innerHTML = '<option value="">Any</option>' + result.classification.map(c => `<option value="${c}">${c}</option>`).join('');
+                    loadedCount++;
                 }
                 if (result.tags && Array.isArray(result.tags)) {
                     tagsSelect.innerHTML = '<option value="">Any</option>' + result.tags.map(t => `<option value="${t}">${t}</option>`).join('');
+                    loadedCount++;
                 }
                 if (result.language && Array.isArray(result.language)) {
                     languagesSelect.innerHTML = '<option value="">Any</option>' + result.language.map(l => `<option value="${l}">${l}</option>`).join('');
+                    loadedCount++;
+                }
+                // Enable search button only if all dropdowns are loaded
+                if (loadedCount === 3) {
+                    searchBtn.disabled = false;
                 }
             } catch (err) {
                 console.error('Failed to load font filters:', err);
