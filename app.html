@@ -1430,13 +1430,14 @@
 
         // Font search form submission
         const fontSearchForm = document.getElementById('font-search-form');
-        fontSearchForm.addEventListener('submit', async function (e) {
-            e.preventDefault();
-            // Remove previous search results folder and font items if present
-            const prevSearchFolder = document.getElementById('search-results-folder');
-            if (prevSearchFolder) prevSearchFolder.remove();
-            const prevSearchFontsContainer = document.getElementById('search-results-fonts');
-            if (prevSearchFontsContainer) prevSearchFontsContainer.remove();
+        // Pagination state
+        let currentPage = 1;
+        const pageSize = 20;
+        let totalFonts = 0;
+        let totalPages = 1;
+
+        // Helper to render search results for a given page
+        async function renderSearchResults(pageNum) {
             const name = document.getElementById('font-name').value.trim();
             const classification = document.getElementById('font-classification').value.trim();
             const tags = document.getElementById('font-tags').value.trim();
@@ -1447,8 +1448,8 @@
             const languageArr = languages ? languages.split(/[, ]+/).filter(Boolean) : undefined;
             // Build payload
             const payload = {
-                pageSize: 20,
-                pageNumber: 1
+                pageSize,
+                pageNumber: pageNum
             };
             if (name) payload.name = name;
             if (tagArr) payload.tag = tagArr;
@@ -1472,11 +1473,20 @@
                 // Remove previous search results folder if present
                 const prevSearchFolder = document.getElementById('search-results-folder');
                 if (prevSearchFolder) prevSearchFolder.remove();
+                const prevSearchFontsContainer = document.getElementById('search-results-fonts');
+                if (prevSearchFontsContainer) prevSearchFontsContainer.remove();
                 // Create search results folder
                 const searchFolder = document.createElement('div');
                 searchFolder.className = 'folder-item has-children';
                 searchFolder.id = 'search-results-folder';
-                searchFolder.innerHTML = `<span><span class="folder-expand-icon">▶</span>🔍 Search Results</span><span class="folder-count">${result.fonts ? result.fonts.length : 0}</span>`;
+                // Use correct pagination info from API response
+                const currentApiPage = result.pageNumber || pageNum;
+                const apiPageSize = result.pageSize || pageSize;
+                const apiItemCount = result.itemCount || (result.fonts ? result.fonts.length : 0);
+                const apiTotal = result.total || apiItemCount;
+                totalFonts = apiTotal;
+                totalPages = Math.max(1, Math.ceil(apiTotal / apiPageSize));
+                searchFolder.innerHTML = `<span><span class="folder-expand-icon expanded">▶</span>🔍 Search Results</span><span class="folder-count">${apiTotal}</span>`;
                 foldersList.prepend(searchFolder);
                 // Create container for font links
                 const searchFontsContainer = document.createElement('div');
@@ -1514,7 +1524,68 @@
                         });
                         searchFontsContainer.appendChild(fontItem);
                     });
+                } else {
+                    // Show a message if no results
+                    const noResults = document.createElement('div');
+                    noResults.style.color = '#fff';
+                    noResults.style.textAlign = 'center';
+                    noResults.style.padding = '16px';
+                    noResults.textContent = 'No fonts found.';
+                    searchFontsContainer.appendChild(noResults);
                 }
+                // Pagination controls (always visible)
+                const paginationContainer = document.createElement('div');
+                paginationContainer.style.display = 'flex';
+                paginationContainer.style.justifyContent = 'center';
+                paginationContainer.style.alignItems = 'center';
+                paginationContainer.style.padding = '12px 0';
+                paginationContainer.style.gap = '8px';
+                paginationContainer.style.background = '#34495e';
+                paginationContainer.style.borderRadius = '0 0 4px 4px';
+                paginationContainer.style.position = 'sticky';
+                paginationContainer.style.bottom = '0';
+                // Previous button
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = 'Previous';
+                prevBtn.style.padding = '6px 14px';
+                prevBtn.style.borderRadius = '4px';
+                prevBtn.style.border = 'none';
+                prevBtn.style.background = '#2c3e50';
+                prevBtn.style.color = '#fff';
+                prevBtn.style.cursor = 'pointer';
+                prevBtn.disabled = currentApiPage === 1;
+                prevBtn.onclick = () => {
+                    if (currentApiPage > 1) {
+                        currentPage = currentApiPage - 1;
+                        renderSearchResults(currentPage);
+                    }
+                };
+                // Next button
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = 'Next';
+                nextBtn.style.padding = '6px 14px';
+                nextBtn.style.borderRadius = '4px';
+                nextBtn.style.border = 'none';
+                nextBtn.style.background = '#2c3e50';
+                nextBtn.style.color = '#fff';
+                nextBtn.style.cursor = 'pointer';
+                nextBtn.disabled = currentApiPage === totalPages;
+                nextBtn.onclick = () => {
+                    if (currentApiPage < totalPages) {
+                        currentPage = currentApiPage + 1;
+                        renderSearchResults(currentPage);
+                    }
+                };
+                // Page info
+                const pageInfo = document.createElement('span');
+                pageInfo.textContent = `Page ${currentApiPage} of ${totalPages}`;
+                pageInfo.style.color = '#fff';
+                pageInfo.style.fontSize = '13px';
+                pageInfo.style.margin = '0 8px';
+                paginationContainer.appendChild(prevBtn);
+                paginationContainer.appendChild(pageInfo);
+                paginationContainer.appendChild(nextBtn);
+                searchFontsContainer.appendChild(paginationContainer);
                 // Expand/collapse logic for search results folder
                 searchFolder.addEventListener('click', function (e) {
                     e.stopPropagation();
@@ -1533,6 +1604,12 @@
             } catch (err) {
                 alert('Font search failed: ' + err.message);
             }
+        }
+        // Initial render
+        fontSearchForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            currentPage = 1;
+            renderSearchResults(currentPage);
         });
 
         // Add this after DOMContentLoaded or at the end of your script
