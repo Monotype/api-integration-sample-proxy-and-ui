@@ -1408,23 +1408,11 @@
                 if (searchFontsContainer) searchFontsContainer.style.display = '';
             } else {
                 fontSearchFormContainer.style.display = 'none';
-                // Hide search results if present
+                // Remove search results from sidebar
                 const searchFolder = document.getElementById('search-results-folder');
-                if (searchFolder) {
-                    searchFolder.style.display = 'none';
-                    // Update count to zero
-                    const countSpan = searchFolder.querySelector('.folder-count');
-                    if (countSpan) countSpan.textContent = '0';
-                }
+                if (searchFolder) searchFolder.remove();
                 const searchFontsContainer = document.getElementById('search-results-fonts');
-                if (searchFontsContainer) searchFontsContainer.style.display = 'none';
-                // Also hide any font items from search
-                const foldersList = document.getElementById('folders-list');
-                if (foldersList) {
-                    Array.from(foldersList.querySelectorAll('.font-item[data-asset-type="SearchResult"]')).forEach(item => {
-                        item.style.display = 'none';
-                    });
-                }
+                if (searchFontsContainer) searchFontsContainer.remove();
             }
         });
 
@@ -1493,6 +1481,12 @@
                 searchFontsContainer.className = 'sub-folders expanded';
                 searchFontsContainer.id = 'search-results-fonts';
                 searchFolder.after(searchFontsContainer);
+                // Wait for all images to load before setting maxHeight
+                // Only set maxHeight to scrollHeight when expanded, never to zero except on collapse
+                // When expanded, always set maxHeight to 'none' so it never collapses
+                if (searchFontsContainer.classList.contains('expanded')) {
+                    searchFontsContainer.style.maxHeight = 'none';
+                }
                 // Create font links for each result
                 if (result.fonts && result.fonts.length) {
                     result.fonts.forEach((font, idx) => {
@@ -1598,7 +1592,7 @@
                     } else {
                         searchFontsContainer.classList.add('expanded');
                         expandIcon.classList.add('expanded');
-                        searchFontsContainer.style.maxHeight = '500px';
+                        searchFontsContainer.style.maxHeight = searchFontsContainer.scrollHeight + 'px';
                     }
                 });
             } catch (err) {
