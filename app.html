@@ -1431,9 +1431,9 @@
             const tags = document.getElementById('font-tags').value.trim();
             const languages = document.getElementById('font-languages').value.trim();
             // Convert comma or space separated values to arrays
-            const tagArr = tags ? tags.split(/[, ]+/).filter(Boolean) : undefined;
-            const classificationArr = classification ? classification.split(/[, ]+/).filter(Boolean) : undefined;
-            const languageArr = languages ? languages.split(/[, ]+/).filter(Boolean) : undefined;
+            const tagArr = tags ? [tags] : undefined;
+            const classificationArr = classification ? [classification] : undefined;
+            const languageArr = languages ? [languages] : undefined;
             // Build payload
             const payload = {
                 pageSize,
