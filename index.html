@@ -115,16 +115,25 @@
             infoDiv.innerHTML = "";
             const data = JSON.parse(document.getElementById("query").value);
 
+
+            // Sanitize HTTP method
+            const allowedMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
+            let selectedMethod = String(methodSelect.value).toUpperCase();
+            if (!allowedMethods.includes(selectedMethod)) {
+                infoDiv.innerHTML = `<span style="color:red">HTTP method ${methodSelect.value} is not allowed.</span>`;
+                return;
+            }
+
             // Send the request using fetch
             const config = {
-                method: methodSelect.value,
+                method: selectedMethod,
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
                 }
             };
 
-            if (methodSelect.value !== 'GET') {
+            if (selectedMethod !== 'GET') {
                 config.body = JSON.stringify(data);
             }
 
