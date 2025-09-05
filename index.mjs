@@ -203,10 +203,18 @@ app.post('/api/logout', async (req, res) => {
 });
 
 app.use('/api/proxy', async (req, res) => {
+
     const subPath = req.url.startsWith('/') ? req.url.slice(1) : req.url;
     const proxyUrl = `https://${API_DOMAIN}/${subPath}`;
 
-    console.log(`${req.method} request to proxy:`, proxyUrl);
+    // Sanitize req.method
+    const allowedMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
+    let sanitizedMethod = String(req.method).toUpperCase();
+    if (!allowedMethods.includes(sanitizedMethod)) {
+        return res.status(405).json({ error: 'Method Not Allowed', message: `HTTP method ${req.method} is not allowed.` });
+    }
+
+    console.log(`${sanitizedMethod} request to proxy:`, proxyUrl);
 
     let accessToken = null;
     if (req.session.sessionId) {
@@ -274,9 +282,9 @@ app.use('/api/proxy', async (req, res) => {
             ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
         };
         const response = await fetch(proxyUrl, {
-            method: req.method,
+            method: sanitizedMethod,
             headers,
-            body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined
+            body: ['POST', 'PUT', 'PATCH'].includes(sanitizedMethod) ? JSON.stringify(req.body) : undefined
         });
 
         // Check if this is a download request that returns binary data
