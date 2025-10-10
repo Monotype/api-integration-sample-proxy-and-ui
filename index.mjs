@@ -76,12 +76,14 @@ app.get('/api/authorize', (req, res) => {
         return res.status(400).json({ error: 'redirect_uri parameter is required' });
     }
 
-    const authUrl = `https://${API_DOMAIN}/v2/oauth/authorize` +
+    let authUrl = `https://${API_DOMAIN}/v2/oauth/authorize` +
         `?response_type=code` +
         `&client_id=${AUTH0_CLIENT_ID}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
         `&scope=${encodeURIComponent(AUTH0_SCOPE)}`;
-
+    if (req?.query?.accessToken) {
+        authUrl += `&accessKey=${encodeURIComponent(req.query.accessToken)}`;
+    }
     console.log('Redirecting to Auth0:', authUrl);
     res.redirect(authUrl);
 });
