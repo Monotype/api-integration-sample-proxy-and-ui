@@ -115,7 +115,7 @@
             infoDiv.innerHTML = "";
             const data = JSON.parse(document.getElementById("query").value);
 
-            // Send the request using fetch
+
             // Sanitize methodSelect.value to accepted HTTP methods
             const allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
             let method = methodSelect.value;
@@ -130,7 +130,7 @@
                 }
             };
 
-            if (methodSelect.value !== 'GET') {
+            if (method !== 'GET') {
                 config.body = JSON.stringify(data);
             }
 
