@@ -116,8 +116,14 @@
             const data = JSON.parse(document.getElementById("query").value);
 
             // Send the request using fetch
+            // Sanitize methodSelect.value to accepted HTTP methods
+            const allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+            let method = methodSelect.value;
+            if (!allowedMethods.includes(method)) {
+                method = 'POST';
+            }
             const config = {
-                method: methodSelect.value,
+                method: method,
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
