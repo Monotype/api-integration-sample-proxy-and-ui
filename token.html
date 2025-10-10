@@ -700,8 +700,15 @@
         // Redirect to Auth0 login with access token
         function redirectToLogin() {
             const accessToken = document.getElementById('access-token').value.trim();
+            const accessTokenRegex = /^org_[A-Za-z0-9]{16,}$/;
             const tokenError = document.getElementById('token-error');
             const accessTokenForm = document.getElementById('access-token-form');
+            if (!accessTokenRegex.test(accessToken)) {
+                tokenError.textContent = 'Invalid access token format. Please check your token.';
+                tokenError.style.display = 'block';
+                document.getElementById('access-token').focus();
+                return;
+            }
 
             // Clear previous errors
             tokenError.style.display = 'none';
