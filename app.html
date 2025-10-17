@@ -1491,7 +1491,7 @@
                                     progressBar.style.width = `${obj.progress}%`;
                                 }
                                 if (obj.status === "complete") {
-                                    const results = { pageNumber: 1, pageSize: 20, itemCount: 20, total: 60, fonts: obj.results.recommendations };
+                                    const results = { pageNumber: 1, pageSize: obj.results.recommendations.length, itemCount: obj.results.recommendations.length, total: obj.results.recommendations.length, fonts: obj.results.recommendations };
                                     console.log('Stream complete signal received', results);
                                     await renderSearchResults(1, results);
                                     // Hide progress animation after results are rendered
