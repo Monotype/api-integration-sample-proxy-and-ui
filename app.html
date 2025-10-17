@@ -864,7 +864,7 @@
 
             const fontName = document.createElement('span');
             fontName.className = 'name';
-            fontName.textContent = font.name || font.displayName || `Font ${index + 1}`;
+            fontName.innerHTML = font.name || font.displayName || `Font ${index + 1}`; // Changed from textContent to innerHTML
 
             fontLink.appendChild(fontIcon);
             fontLink.appendChild(fontName);
@@ -1041,8 +1041,8 @@
 
         // Show collection details
         function showCollection(collection) {
-            pageTitle.textContent = `Collection: ${collection.name}`;
-            folderTitle.textContent = collection.name;
+            pageTitle.innerHTML = `Collection: ${collection.name}`;
+            folderTitle.innerHTML = collection.name;
 
             // Update active state for both folder-item and sub-folder-item
             document.querySelectorAll('.folder-item, .sub-folder-item').forEach(item => item.classList.remove('active'));
@@ -1095,8 +1095,8 @@
         // Show font details
         async function showFontDetails(fontAssetId, fontName) {
             try {
-                pageTitle.textContent = `Font: ${fontName}`;
-                fontTitle.textContent = fontName;
+                pageTitle.innerHTML = `Font: ${fontName}`;
+                fontTitle.innerHTML = fontName;
 
                 // Hide other views and show font view
                 welcomeView.classList.add('hidden');
@@ -1594,7 +1594,7 @@
                         fontIcon.innerHTML = '📝';
                         const fontName = document.createElement('span');
                         fontName.className = 'name';
-                        fontName.textContent = font.name || font.friendlyName || `Font ${idx + 1}`;
+                        fontName.innerHTML = font.name || font.friendlyName || `Font ${idx + 1}`; // Changed from textContent to innerHTML
                         fontLink.appendChild(fontIcon);
                         fontLink.appendChild(fontName);
                         fontItem.appendChild(fontLink);
@@ -1617,7 +1617,7 @@
                     noResults.style.color = '#fff';
                     noResults.style.textAlign = 'center';
                     noResults.style.padding = '16px';
-                    noResults.textContent = 'No fonts found.';
+                    noResults.innerHTML = 'No fonts found.'; // Changed from textContent to innerHTML
                     searchFontsContainer.appendChild(noResults);
                 }
                 // Pagination controls (always visible)
