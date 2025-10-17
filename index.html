@@ -135,18 +135,57 @@
             }
 
             const response = await fetch(`/api/proxy${endpointInput.value}`, config);
-            const result = await response.json();
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/event-stream')) {
+                infoDiv.innerHTML = "";
+                // Handle streaming SSE from your proxy
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
 
-            // Check if the response has an authentication error
-            if (result.error === "Not authenticated") {
-                currentStep = 0;
-                nextButton.style.display = 'block';
-                queryHolder.style.display = 'none';
-                return;
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Split on SSE message boundary
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop(); // keep the last partial chunk
+
+                    for (const part of parts) {
+                        if (part.startsWith('data:')) {
+                            const data = part.slice(5).trim();
+                            infoDiv.innerHTML += "<pre>" + JSON.stringify(JSON.parse(data), null, 4) + "</pre>";
+                            if (data === '[DONE]') {
+                                console.log('Stream complete');
+                                break;
+                            }
+
+                            try {
+                                const obj = JSON.parse(data);
+                                console.log('Stream event:', obj);
+                                // TODO: Update your UI incrementally here
+                            } catch {
+                                console.log('Stream text:', data);
+                            }
+                        }
+                    }
+                }
+            } else {
+                const result = await response.json();
+
+                // Check if the response has an authentication error
+                if (result.error === "Not authenticated") {
+                    currentStep = 0;
+                    nextButton.style.display = 'block';
+                    queryHolder.style.display = 'none';
+                    return;
+                }
+
+                const formattedJson = JSON.stringify(result, null, 4);
+                infoDiv.innerHTML = "<pre>" + formattedJson + "</pre>";
             }
-
-            const formattedJson = JSON.stringify(result, null, 4);
-            infoDiv.innerHTML = "<pre>" + formattedJson + "</pre>";
         }
 
         async function nextStep() {
