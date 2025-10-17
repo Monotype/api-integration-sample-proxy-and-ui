@@ -313,31 +313,33 @@ app.use('/api/proxy', async (req, res) => {
         } else {
             const contentType = response.headers.get('content-type') || '';
             if (contentType.includes('text/event-stream')) {
-                // Handle SSE stream in Node.js
-                let data;
+                // Set up streaming response to browser
+                res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+
                 const rl = readline.createInterface({
-                    input: response.body, // Node Readable stream
+                    input: response.body,
                     crlfDelay: Infinity
                 });
 
                 rl.on('line', (line) => {
                     if (line.startsWith('data:')) {
                         const raw = line.slice(5).trim();
-                        if (raw === '[DONE]') return; // some LLMs send [DONE] to signal end
-                        try {
-                            const obj = JSON.parse(raw);
-                            if (obj.status == "complete") {
-                                data = obj;
-                            }
-                        } catch (err) {
-                            console.error('Failed to parse JSON line:', raw);
+                        if (raw === '[DONE]') {
+                            res.write('data: [DONE]\n\n');
+                            res.end();
+                            return;
                         }
+
+                        // just relay the raw line directly
+                        res.write(`data: ${raw}\n\n`);
                     }
                 });
 
-                // Wait until the stream ends
-                await new Promise((resolve) => rl.on('close', resolve));
-                res.status(response.status).json(data);
+                rl.on('close', () => {
+                    res.end();
+                });
             }
             else {
                 // Handle JSON responses
