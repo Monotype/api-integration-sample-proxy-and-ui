@@ -314,7 +314,7 @@ app.use('/api/proxy', async (req, res) => {
             const contentType = response.headers.get('content-type') || '';
             if (contentType.includes('text/event-stream')) {
                 // Handle SSE stream in Node.js
-                let data = [];
+                let data;
                 const rl = readline.createInterface({
                     input: response.body, // Node Readable stream
                     crlfDelay: Infinity
@@ -326,7 +326,9 @@ app.use('/api/proxy', async (req, res) => {
                         if (raw === '[DONE]') return; // some LLMs send [DONE] to signal end
                         try {
                             const obj = JSON.parse(raw);
-                            data.push(obj);
+                            if (obj.status == "complete") {
+                                data = obj;
+                            }
                         } catch (err) {
                             console.error('Failed to parse JSON line:', raw);
                         }
