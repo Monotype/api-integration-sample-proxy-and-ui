@@ -7,6 +7,7 @@ import { RedisStore } from 'connect-redis';
 import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import * as readline from 'readline';
 
 // Load environment variables
 dotenv.config();
@@ -310,9 +311,38 @@ app.use('/api/proxy', async (req, res) => {
 
             res.status(response.status).send(buffer);
         } else {
-            // Handle JSON responses
-            const data = await response.json();
-            res.status(response.status).json(data);
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/event-stream')) {
+                // Handle SSE stream in Node.js
+                let data = [];
+                const rl = readline.createInterface({
+                    input: response.body, // Node Readable stream
+                    crlfDelay: Infinity
+                });
+
+                rl.on('line', (line) => {
+                    if (line.startsWith('data:')) {
+                        const raw = line.slice(5).trim();
+                        if (raw === '[DONE]') return; // some LLMs send [DONE] to signal end
+                        try {
+                            const obj = JSON.parse(raw);
+                            data.push(obj);
+                        } catch (err) {
+                            console.error('Failed to parse JSON line:', raw);
+                        }
+                    }
+                });
+
+                // Wait until the stream ends
+                await new Promise((resolve) => rl.on('close', resolve));
+                res.status(response.status).json(data);
+            }
+            else {
+                // Handle JSON responses
+                const data = await response.json();
+                res.status(response.status).json(data);
+
+            }
         }
     } catch (error) {
         console.error('Proxy error:', error);
