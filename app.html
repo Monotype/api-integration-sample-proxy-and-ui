@@ -526,6 +526,18 @@
                         <span>Browse Fonts</span>
                     </button>
                     <div id="font-search-form-container" style="display:none;padding:16px 20px 0 20px;">
+                        <form id="contextual-search-form">
+                            <label for="query"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Contextual
+                                Search</label>
+                            <input id="query" name="query" type="text" style="width:100%;margin-bottom:12px;">
+                            <button id="contextual-search-btn" type="submit"
+                                style="background:#3498db;color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:bold;"
+                                disabled>
+                                Search
+                            </button>
+                        </form>
+                        <br>
                         <form id="font-search-form">
                             <label for="font-name"
                                 style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Font
@@ -1419,6 +1431,7 @@
         });
 
         // Font search form submission
+        const contextualSearchForm = document.getElementById('contextual-search-form');
         const fontSearchForm = document.getElementById('font-search-form');
         // Pagination state
         let currentPage = 1;
@@ -1426,8 +1439,64 @@
         let totalFonts = 0;
         let totalPages = 1;
 
-        // Helper to render search results for a given page
-        async function renderSearchResults(pageNum) {
+        async function renderContextualSearchResults() {
+            const query = document.getElementById('query').value.trim();
+            try {
+                const payload = {
+                    query: query
+                };
+                const response = await fetch('/api/proxy/v1/fontgpt/recommendations', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Split on SSE message boundary
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop(); // keep the last partial chunk
+
+                    for (const part of parts) {
+                        if (part.startsWith('data:')) {
+                            const data = part.slice(5).trim();
+
+                            // infoDiv.innerHTML += "<pre>" + JSON.stringify(JSON.parse(data), null, 4) + "</pre>";
+                            if (data === '[DONE]') {
+                                console.log('Stream complete');
+                                break;
+                            }
+                            try {
+                                const obj = JSON.parse(data);
+                                if (obj.status === "complete") {
+                                    const results = { pageNumber: 1, pageSize: 20, itemCount: 20, total: 60, fonts: obj.results.recommendations };
+                                    console.log('Stream complete signal received', results);
+                                    await renderSearchResults(1, results);
+                                }
+                                else {
+                                    // TODO: Update your UI incrementally here
+                                }
+                            } catch {
+                            }
+                        }
+                    }
+                }
+            }
+            catch (error) {
+                console.error('Error performing contextual search:', error);
+            }
+        }
+        async function getSearchResults(pageNum) {
             // Get selected values from multi-selects
             function getSelectedValues(select) {
                 return Array.from(select.selectedOptions).map(opt => opt.value).filter(Boolean);
@@ -1458,6 +1527,17 @@
                     body: JSON.stringify(payload)
                 });
                 const result = await response.json();
+                await renderSearchResults(pageNum, result);
+            }
+            catch (error) {
+                console.error('Error fetching search results:', error);
+            }
+        }
+        // Helper to render search results for a given page
+        // TODO: does this need to be async?
+        async function renderSearchResults(pageNum, result) {
+            console.log("Rendering search results:", result);
+            try {
                 // Display search results as a folder in the collections section
                 const foldersList = document.getElementById('folders-list');
                 // Remove previous search results folder if present
@@ -1553,7 +1633,7 @@
                 prevBtn.onclick = () => {
                     if (currentApiPage > 1) {
                         currentPage = currentApiPage - 1;
-                        renderSearchResults(currentPage);
+                        getSearchResults(currentPage);
                     }
                 };
                 // Next button
@@ -1569,7 +1649,7 @@
                 nextBtn.onclick = () => {
                     if (currentApiPage < totalPages) {
                         currentPage = currentApiPage + 1;
-                        renderSearchResults(currentPage);
+                        getSearchResults(currentPage);
                     }
                 };
                 // Page info
@@ -1605,7 +1685,12 @@
         fontSearchForm.addEventListener('submit', function (e) {
             e.preventDefault();
             currentPage = 1;
-            renderSearchResults(currentPage);
+            getSearchResults(currentPage);
+        });
+        contextualSearchForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            currentPage = 1;
+            renderContextualSearchResults();
         });
 
         // Add this after DOMContentLoaded or at the end of your script
@@ -1623,11 +1708,13 @@
                 const tagsSelect = document.getElementById('font-tags');
                 const languagesSelect = document.getElementById('font-languages');
                 const searchBtn = document.getElementById('font-search-btn');
+                const contextualSearchBtn = document.getElementById('contextual-search-btn');
                 // Show loading state
                 classificationSelect.innerHTML = '<option>Loading...</option>';
                 tagsSelect.innerHTML = '<option>Loading...</option>';
                 languagesSelect.innerHTML = '<option>Loading...</option>';
                 searchBtn.disabled = true;
+                contextualSearchBtn.disabled = true;
                 let loadedCount = 0;
                 // Populate dropdowns using correct keys from API response
                 if (result.classification && Array.isArray(result.classification)) {
@@ -1645,6 +1732,7 @@
                 // Enable search button only if all dropdowns are loaded
                 if (loadedCount === 3) {
                     searchBtn.disabled = false;
+                    contextualSearchBtn.disabled = false;
                 }
             } catch (err) {
                 console.error('Failed to load font filters:', err);
