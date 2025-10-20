@@ -317,27 +317,41 @@ app.use('/api/proxy', async (req, res) => {
                 res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
                 res.setHeader('Cache-Control', 'no-cache');
                 res.setHeader('Connection', 'keep-alive');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
 
-                const rl = readline.createInterface({
-                    input: response.body,
-                    crlfDelay: Infinity
-                });
+                // Set longer timeout for streaming responses
+                res.setTimeout(0); // Disable timeout
+                req.setTimeout(0); // Disable request timeout
 
-                rl.on('line', (line) => {
-                    if (line.startsWith('data:')) {
-                        const raw = line.slice(5).trim();
-                        if (raw === '[DONE]') {
-                            res.write('data: [DONE]\n\n');
-                            res.end();
-                            return;
-                        }
-
-                        // just relay the raw line directly
-                        res.write(`data: ${raw}\n\n`);
+                // Handle client disconnect
+                req.on('close', () => {
+                    console.log('Client disconnected from stream');
+                    if (response.body && typeof response.body.destroy === 'function') {
+                        response.body.destroy();
                     }
                 });
 
-                rl.on('close', () => {
+                req.on('error', (err) => {
+                    console.error('Request error during stream:', err);
+                    if (response.body && typeof response.body.destroy === 'function') {
+                        response.body.destroy();
+                    }
+                });
+
+                // Stream the response directly without parsing
+                response.body.on('data', (chunk) => {
+                    res.write(chunk);
+                });
+
+                response.body.on('end', () => {
+                    console.log('Upstream stream ended');
+                    res.end();
+                });
+
+                response.body.on('error', (err) => {
+                    console.error('Stream error:', err);
+                    res.write('data: {"error": "Stream error occurred"}\n\n');
                     res.end();
                 });
             }
