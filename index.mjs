@@ -339,8 +339,9 @@ app.use('/api/proxy', async (req, res) => {
                     }
                 });
 
-                // Stream the response directly without parsing
+                // Handle streaming data manually to avoid pipe buffering issues
                 response.body.on('data', (chunk) => {
+                    // Write the chunk exactly as received without any modification
                     res.write(chunk);
                 });
 
@@ -351,7 +352,6 @@ app.use('/api/proxy', async (req, res) => {
 
                 response.body.on('error', (err) => {
                     console.error('Stream error:', err);
-                    res.write('data: {"error": "Stream error occurred"}\n\n');
                     res.end();
                 });
             }
