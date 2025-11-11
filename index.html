@@ -173,7 +173,12 @@
                     }
                 }
             } else {
-                const result = await response.json();
+                let result;
+                if (response.status === 204 || response.headers.get('content-length') === '0') {
+                    result = { message: "No Content" };
+                } else {
+                    result = await response.json();
+                }
 
                 // Check if the response has an authentication error
                 if (result.error === "Not authenticated") {

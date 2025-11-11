@@ -357,9 +357,12 @@ app.use('/api/proxy', async (req, res) => {
             }
             else {
                 // Handle JSON responses
-                const data = await response.json();
-                res.status(response.status).json(data);
-
+                if (response.status === 204 || response.headers.get('content-length') === '0') {
+                    res.status(response.status).json({ message: `${response.status} response` });
+                } else {
+                    const data = await response.json();
+                    res.status(response.status).json(data);
+                }
             }
         }
     } catch (error) {
