@@ -1291,7 +1291,7 @@
                 downloadBtn.style.background = '#95a5a6';
 
                 // Make request to download endpoint
-                const response = await fetch(`/api/proxy/v1/fonts/${fontId}/download?directDownload=true`, {
+                const response = await fetch(`/api/proxy/v1/fonts/${encodeURIComponent(fontId)}/download?directDownload=true`, {
                     method: 'GET',
                     headers: {
                         'Accept': 'application/json',
@@ -1313,16 +1313,27 @@
                     }
                 }
 
-                // Create blob and download
+                // Create blob and download using a more secure approach
                 const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
+                const blobUrl = window.URL.createObjectURL(blob);
+
+                // Create a temporary anchor element
                 const a = document.createElement('a');
-                a.href = url;
+                a.style.display = 'none';
+
+                // Set href to the blob URL (not user-controlled)
+                a.href = blobUrl;
                 a.download = filename;
+
+                // Append to body, trigger click, then clean up
                 document.body.appendChild(a);
                 a.click();
-                document.body.removeChild(a);
-                window.URL.revokeObjectURL(url);
+
+                // Clean up immediately
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 100);
 
                 // Reset button
                 downloadBtn.innerHTML = '<span style="font-size: 16px;">✓</span> Downloaded!';
