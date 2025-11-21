@@ -112,7 +112,7 @@
 
         async function makeAPIRequest() {
             const infoDiv = document.getElementById('info-div');
-            infoDiv.innerHTML = "";
+            infoDiv.textContent = ""; // Use textContent instead of innerHTML
             const data = JSON.parse(document.getElementById("query").value);
 
 
@@ -137,7 +137,7 @@
             const response = await fetch(`/api/proxy${endpointInput.value}`, config);
             const contentType = response.headers.get('content-type') || '';
             if (contentType.includes('text/event-stream')) {
-                infoDiv.innerHTML = "";
+                infoDiv.textContent = ""; // Use textContent instead of innerHTML
                 // Handle streaming SSE from your proxy
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder('utf-8');
@@ -156,7 +156,12 @@
                     for (const part of parts) {
                         if (part.startsWith('data:')) {
                             const data = part.slice(5).trim();
-                            infoDiv.innerHTML += "<pre>" + JSON.stringify(JSON.parse(data), null, 4) + "</pre>";
+
+                            // Create pre element safely
+                            const pre = document.createElement('pre');
+                            pre.textContent = JSON.stringify(JSON.parse(data), null, 4);
+                            infoDiv.appendChild(pre);
+
                             if (data === '[DONE]') {
                                 console.log('Stream complete');
                                 break;
@@ -189,7 +194,11 @@
                 }
 
                 const formattedJson = JSON.stringify(result, null, 4);
-                infoDiv.innerHTML = "<pre>" + formattedJson + "</pre>";
+
+                // Create pre element safely
+                const pre = document.createElement('pre');
+                pre.textContent = formattedJson;
+                infoDiv.appendChild(pre);
             }
         }
 
