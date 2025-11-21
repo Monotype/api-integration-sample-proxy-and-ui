@@ -93,18 +93,16 @@ app.post('/api/token', async (req, res) => {
     try {
         const body = {
             grant_type: 'authorization_code',
-            client_id: AUTH0_CLIENT_ID,
-            client_secret: AUTH0_CLIENT_SECRET,
             code: req.body.code,
             redirect_uri: req.body.redirect_uri
         };
-
+        const authCode = btoa(AUTH0_CLIENT_ID + ':' + AUTH0_CLIENT_SECRET);
         const formBody = new URLSearchParams(body).toString();
         const response = await fetch(tokenUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'x-client-id': AUTH0_CLIENT_ID
+                'Authorization': `Basic ${authCode}`
             },
             body: formBody
         });
