@@ -20,11 +20,11 @@ const app = express();
 const port = process.env.PORT || 8081;
 
 const API_DOMAIN = process.env.API_DOMAIN || 'pp-api.monotype.com';
-const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID || '1LJYcGtnPp4azOhesGL94NuIu627E1DC';
+const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
 const AUTH0_CLIENT_SECRET = process.env.AUTH0_CLIENT_SECRET; // REQUIRED for Auth Code flow
 const AUTH0_SCOPE = 'openid email profile';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'b95321ee9b7f74085ef59a3644ef20284a8dd37c3423a391402b04842731867745ba2f3bfd52f22ba49523f78165550522643b80e05ec0b71896a5cad7de6ac5';
+const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_LIFESPAN = 24 * 60 * 60 * 1000; // 24 hours in ms
 const tokenUrl = `https://${API_DOMAIN}/v2/oauth/token`;
 
