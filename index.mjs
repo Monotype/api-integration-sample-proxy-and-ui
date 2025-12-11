@@ -64,7 +64,14 @@ app.use(session({
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+// 2️⃣ Middleware for non-API requests
+app.use((req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) return next();
+    if (req.path.endsWith('.html')) return next();
+    if (req.path.endsWith('/')) return next();
+    return res.sendStatus(404);
+});
 // Serve static files
 app.use(express.static(path.join(__dirname)));
 
