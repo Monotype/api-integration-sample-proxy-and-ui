@@ -70,6 +70,7 @@ app.use((req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     if (req.path.endsWith('.html')) return next();
     if (req.path.endsWith('/')) return next();
+    if (req.path.endsWith('.css')) return next();
     return res.sendStatus(404);
 });
 // Serve static files
