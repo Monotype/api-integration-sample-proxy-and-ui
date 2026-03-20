@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DesignStudio Pro - Font Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .login-card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .login-card h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .login-card p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .login-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            width: 100%;
+        }
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .login-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #99d3ff;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #2c3e50;
+            color: white;
+            padding: 20px 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px 20px;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .sidebar-header h2 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header .user-info {
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+
+        .sidebar-nav {
+            padding: 20px 0;
+        }
+
+        .nav-section {
+            margin-bottom: 30px;
+        }
+
+        .nav-section-title {
+            padding: 0 20px;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #7f8c8d;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .nav-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            border: none;
+            background: none;
+            color: white;
+            width: 100%;
+            text-align: left;
+        }
+
+        .nav-item:hover {
+            background-color: #34495e;
+        }
+
+        .nav-item.active {
+            background-color: #3498db;
+        }
+
+        .nav-item-icon {
+            margin-right: 12px;
+            font-size: 16px;
+        }
+
+        .folders-list {
+            max-height: 300px;
+            overflow-y: auto;
+            background: #34495e;
+            border-radius: 4px;
+            margin: 8px 0;
+        }
+
+        .folder-item {
+            padding: 8px 40px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .folder-item:hover {
+            background-color: #34495e;
+        }
+
+        .folder-item.active {
+            background-color: #3498db;
+        }
+
+        .folder-item.has-children {
+            padding-right: 20px;
+        }
+
+        .folder-expand-icon {
+            margin-right: 8px;
+            font-size: 12px;
+            transition: transform 0.2s;
+            color: #bdc3c7;
+        }
+
+        .folder-expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .folder-expand-icon {
+            margin-right: 6px;
+            transition: transform 0.2s ease;
+            display: inline-block;
+        }
+
+        .folder-expand-icon.expanded {
+            transform: rotate(90deg);
+        }
+
+        .sub-folders {
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            max-height: 0;
+        }
+
+        .sub-folders.expanded {
+            max-height: 500px;
+        }
+
+        .sub-folder-item {
+            padding: 6px 20px 6px 60px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            color: #bdc3c7;
+        }
+
+        .sub-folder-item:hover {
+            background-color: #34495e;
+            color: white;
+        }
+
+        .sub-folder-item.active {
+            background-color: #2980b9;
+            color: white;
+        }
+
+        .folder-count {
+            background: #7f8c8d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .sub-folder-count {
+            background: #95a5a6;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 11px;
+        }
+
+        .font-item {
+            margin-left: 40px;
+            padding-left: 15px;
+        }
+
+        .font-item .collection-link {
+            font-size: 13px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+
+        .font-item .collection-link:hover {
+            background-color: #f1f3f4;
+        }
+
+        .font-item.selected .collection-link {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            font-weight: 500;
+        }
+
+        .font-item .icon {
+            font-size: 12px;
+            margin-right: 6px;
+        }
+
+        .sub-folders.has-fonts {
+            margin-left: 25px;
+            padding-left: 10px;
+        }
+
+        .font-name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .font-variation-icon {
+            margin-right: 6px;
+            font-size: 10px;
+        }
+
+        .sub-folders.has-fonts.expanded {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .loading {
+            padding: 8px 40px;
+            font-size: 14px;
+            color: #bdc3c7;
+            font-style: italic;
+        }
+
+        .error-logout-btn {
+            margin-top: 10px;
+            padding: 6px 12px;
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .error-logout-btn:hover {
+            background-color: #c0392b;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            background: #ecf0f1;
+            overflow-y: auto;
+        }
+
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e1e5e9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            color: #2c3e50;
+        }
+
+        .logout-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .logout-btn:hover {
+            background: #c0392b;
+        }
+
+        .download-btn:hover {
+            background: #2ecc71 !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+        }
+
+        .content-area {
+            padding: 30px;
+        }
+
+        .welcome-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .folder-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .folder-content h2 {
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+
+        .folder-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .font-content {
+            padding: 30px;
+        }
+
+        .font-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .font-preview {
+            grid-column: 1 / -1;
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 8px;
+            border-left: 4px solid #9b59b6;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .font-preview-text {
+            font-size: 48px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            line-height: 1.2;
+        }
+
+        .font-metadata {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .detail-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 40vh;
+            }
+
+            .folders-list {
+                max-height: 150px;
+                background: #34495e;
+                border-radius: 4px;
+                margin: 8px 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="login-screen" class="login-screen">
+        <div class="login-card">
+            <h1>DesignStudio Pro</h1>
+            <p id="login-description">Professional font management for creative teams</p>
+
+            <!-- Access Token Form -->
+            <div id="access-token-form" style="margin-bottom: 20px;">
+                <div style="margin-bottom: 15px;">
+                    <label for="access-token"
+                        style="display: block; margin-bottom: 8px; font-weight: 600; color: #333; font-size: 14px;">Access
+                        Token:</label>
+                    <input type="text" id="access-token" placeholder="Enter your access token"
+                        style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; box-sizing: border-box;"
+                        required>
+                    <div id="token-error" style="color: #e74c3c; font-size: 12px; margin-top: 5px; display: none;">
+                    </div>
+                </div>
+            </div>
+
+            <button id="login-btn" class="login-btn">Connect to Font Library</button>
+            <div id="status-message" class="status-message hidden"></div>
+        </div>
+    </div>
+
+    <div id="app-container" class="app-container hidden">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>DesignStudio Pro</h2>
+                <div class="user-info">Connected to Monotype</div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="nav-section">
+                    <div class="nav-section-title">Library</div>
+                    <button class="nav-item active" data-view="home">
+                        <span class="nav-item-icon">🏠</span>
+                        <span>Home</span>
+                    </button>
+                    <button class="nav-item" id="browse-fonts-link" data-view="browse">
+                        <span class="nav-item-icon">🔍</span>
+                        <span>Browse Fonts</span>
+                    </button>
+                    <div id="font-search-form-container" style="display:none;padding:16px 20px 0 20px;">
+                        <form id="font-search-form">
+                            <label for="font-name"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Font
+                                Name</label>
+                            <input id="font-name" name="font-name" type="text" style="width:100%;margin-bottom:12px;">
+                            <label for="font-classification"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Classification
+                            </label>
+                            <select id="font-classification" name="font-classification" multiple
+                                style="width:100%;margin-bottom:12px;min-height:80px;">
+                                <option>Loading...</option>
+                            </select>
+                            <label for="font-tags"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Tags
+                            </label>
+                            <select id="font-tags" name="font-tags" multiple
+                                style="width:100%;margin-bottom:12px;min-height:80px;">
+                                <option>Loading...</option>
+                            </select>
+                            <label for="font-languages"
+                                style="color:#fff;font-weight:bold;display:block;margin-bottom:4px;">Languages</label>
+                            <select id="font-languages" name="font-languages" multiple
+                                style="width:100%;margin-bottom:12px;min-height:80px;">
+                                <option>Loading...</option>
+                            </select>
+                            <button id="font-search-btn" type="submit"
+                                style="background:#3498db;color:#fff;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-weight:bold;"
+                                disabled>
+                                Search
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <div class="nav-section">
+                    <div class="nav-section-title">Collections</div>
+                    <div id="folders-loading" class="loading">Loading folders...</div>
+                    <div id="folders-list" class="folders-list hidden"></div>
+                    <div id="folders-error" class="loading hidden" style="color: #e74c3c;">
+                        <div>Failed to load folders</div>
+                        <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="header">
+                <h1 id="page-title">Font Library Dashboard</h1>
+                <button id="logout-btn" class="logout-btn">Logout</button>
+            </header>
+            <div class="content-area">
+                <div id="welcome-view" class="welcome-card">
+                    <h2>Welcome to DesignStudio Pro</h2>
+                    <p>Your professional font management solution. Browse your collections in the sidebar to get
+                        started.</p>
+                </div>
+                <div id="folder-view" class="folder-content hidden">
+                    <h2 id="folder-title">Collection Details</h2>
+                    <div id="folder-details" class="folder-details"></div>
+                    <div id="folder-description"></div>
+                </div>
+                <div id="font-view" class="font-content hidden">
+                    <h2 id="font-title">Font Details</h2>
+                    <div id="font-loading" class="loading hidden">Loading font details...</div>
+                    <div id="font-details" class="font-details"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const AUTH0_REDIRECT_URI = window.location.origin + window.location.pathname;
+        let isAuthenticated = false;
+        let collections = [];
+        let authStep = 'initial'; // 'initial', 'authenticating', 'authenticated', 'loading', 'ready'
+
+        // DOM Elements
+        const loginScreen = document.getElementById('login-screen');
+        const appContainer = document.getElementById('app-container');
+        const loginBtn = document.getElementById('login-btn');
+        const loginDescription = document.getElementById('login-description');
+        const statusMessage = document.getElementById('status-message');
+        const logoutBtn = document.getElementById('logout-btn');
+        const foldersLoading = document.getElementById('folders-loading');
+        const foldersList = document.getElementById('folders-list');
+        const foldersError = document.getElementById('folders-error');
+        const pageTitle = document.getElementById('page-title');
+        const welcomeView = document.getElementById('welcome-view');
+        const folderView = document.getElementById('folder-view');
+        const folderTitle = document.getElementById('folder-title');
+        const folderDetails = document.getElementById('folder-details');
+        const folderDescription = document.getElementById('folder-description');
+        const fontView = document.getElementById('font-view');
+        const fontTitle = document.getElementById('font-title');
+        const fontLoading = document.getElementById('font-loading');
+        const fontDetails = document.getElementById('font-details');
+
+        // Show status message
+        function showStatus(message, type = 'info') {
+            statusMessage.textContent = message;
+            statusMessage.className = `status-message status-${type}`;
+            statusMessage.classList.remove('hidden');
+        }
+
+        // Hide status message
+        function hideStatus() {
+            statusMessage.classList.add('hidden');
+        }
+
+        // Update login UI based on auth step
+        function updateLoginUI() {
+            const accessTokenForm = document.getElementById('access-token-form');
+
+            switch (authStep) {
+                case 'initial':
+                    loginBtn.textContent = 'Connect to Font Library';
+                    loginBtn.disabled = false;
+                    loginDescription.textContent = 'Professional font management for creative teams';
+                    accessTokenForm.style.display = 'block'; // Show form for initial state
+                    hideStatus();
+                    break;
+                case 'authenticating':
+                    loginBtn.textContent = 'Connecting...';
+                    loginBtn.disabled = true;
+                    accessTokenForm.style.display = 'none'; // Hide form during auth
+                    showStatus('Redirecting to Monotype authentication...', 'info');
+                    break;
+                case 'authenticated':
+                    loginBtn.textContent = 'Loading Collections...';
+                    loginBtn.disabled = true;
+                    accessTokenForm.style.display = 'none'; // Keep hidden
+                    showStatus('Authentication successful! Loading your font collections...', 'success');
+                    break;
+                case 'loading':
+                    loginBtn.textContent = 'Loading Collections...';
+                    loginBtn.disabled = true;
+                    accessTokenForm.style.display = 'none'; // Keep hidden
+                    showStatus('Fetching your font library collections...', 'info');
+                    break;
+                case 'error':
+                    loginBtn.textContent = 'Retry Connection';
+                    loginBtn.disabled = false;
+                    accessTokenForm.style.display = 'block'; // Show form again for retry
+                    break;
+            }
+        }
+
+        // Get query params from URL
+        function getQueryParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                code: params.get('code'),
+                state: params.get('state')
+            };
+        }
+
+        // Redirect to Auth0 login with access token
+        function redirectToLogin() {
+            const accessToken = document.getElementById('access-token').value.trim();
+            const accessTokenRegex = /^org_[A-Za-z0-9]{16,}$/;
+            const tokenError = document.getElementById('token-error');
+            const accessTokenForm = document.getElementById('access-token-form');
+            if (!accessTokenRegex.test(accessToken)) {
+                tokenError.textContent = 'Invalid access token format. Please check your token.';
+                tokenError.style.display = 'block';
+                document.getElementById('access-token').focus();
+                return;
+            }
+
+            // Clear previous errors
+            tokenError.style.display = 'none';
+            tokenError.textContent = '';
+
+            // Validate access token
+            if (!accessToken) {
+                tokenError.textContent = 'Access token is required';
+                tokenError.style.display = 'block';
+                return;
+            }
+
+            // Hide the access token form once submitted
+            accessTokenForm.style.display = 'none';
+
+            authStep = 'authenticating';
+            updateLoginUI();
+
+            setTimeout(() => {
+                const authUrl = `/api/authorize?redirect_uri=${encodeURIComponent(AUTH0_REDIRECT_URI)}&accessToken=${encodeURIComponent(accessToken)}`;
+                window.location.href = authUrl;
+            }, 1500);
+        }
+
+        // Exchange authorization code for tokens
+        async function exchangeCodeForTokens(code) {
+            try {
+                authStep = 'authenticated';
+                updateLoginUI();
+
+                const tokenUrl = `/api/token`;
+                const body = {
+                    code: code,
+                    redirect_uri: AUTH0_REDIRECT_URI
+                };
+                const formBody = new URLSearchParams(body).toString();
+                const response = await fetch(tokenUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: formBody
+                });
+
+                const result = await response.json();
+                console.log('Token exchange result:', result);
+
+                if (result.success) {
+                    isAuthenticated = true;
+                    authStep = 'loading';
+                    updateLoginUI();
+
+                    // Wait a moment to show the success message and avoid rate limiting
+                    setTimeout(async () => {
+                        await loadCollections();
+                    }, 3000); // Increased delay to 3 seconds to avoid rate limiting
+                } else {
+                    throw new Error(result.message || 'Authentication failed');
+                }
+
+                return result;
+            } catch (error) {
+                console.error('Error during token exchange:', error);
+                authStep = 'error';
+                updateLoginUI();
+                showStatus(`Authentication failed: ${error.message}`, 'error');
+            }
+        }        // Load collections from API
+        async function loadCollections() {
+            try {
+                foldersLoading.classList.remove('hidden');
+                foldersError.classList.add('hidden');
+                foldersList.classList.add('hidden');
+
+                console.log('Making request to /api/proxy/v1/fontslibrary/collections');
+                const response = await fetch('/api/proxy/v1/fontslibrary/collections', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                const result = await response.json();
+                console.log('API Response:', result);
+
+                if (response.status === 429) {
+                    throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+                } else if (response.ok) {
+                    // The API returns a direct array of collections
+                    if (Array.isArray(result)) {
+                        collections = result;
+                    } else if (result.data && Array.isArray(result.data)) {
+                        collections = result.data;
+                    } else {
+                        console.warn('Unexpected response structure:', result);
+                        collections = [];
+                    }
+
+                    console.log('Parsed collections:', collections);
+
+                    renderCollections();
+
+                    // Successfully loaded - show the app
+                    authStep = 'ready';
+                    showApp();
+                    showStatus('Successfully connected to your font library!', 'success');
+                    setTimeout(hideStatus, 3000);
+                } else if (result.error === "Not authenticated") {
+                    throw new Error('Session expired. Please log in again.');
+                } else {
+                    throw new Error(result.message || `HTTP ${response.status}: Failed to load collections`);
+                }
+            } catch (error) {
+                console.error('Error loading collections:', error);
+                authStep = 'error';
+                foldersLoading.classList.add('hidden');
+                foldersError.classList.remove('hidden');
+
+                if (error.message.includes('Session expired') || error.message.includes('Not authenticated')) {
+                    showLogin();
+                    showStatus('Session expired. Please reconnect to your font library.', 'error');
+                } else if (error.message.includes('Rate limit exceeded')) {
+                    updateLoginUI();
+                    showStatus('Rate limit exceeded. Please wait a moment and try again.', 'error');
+
+                    // Add retry button for rate limit
+                    setTimeout(() => {
+                        if (authStep === 'error') {
+                            loginBtn.textContent = 'Retry Loading Collections';
+                            showStatus('Ready to retry loading collections.', 'info');
+                        }
+                    }, 5000);
+                } else {
+                    updateLoginUI();
+                    showStatus(`Failed to load collections: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Render collections in sidebar
+        function renderCollections() {
+            foldersLoading.classList.add('hidden');
+            foldersError.classList.add('hidden');
+            foldersList.classList.remove('hidden');
+
+            foldersList.innerHTML = '';
+
+            if (!collections || collections.length === 0) {
+                // Show message when no collections are found
+                const noCollectionsItem = document.createElement('div');
+                noCollectionsItem.className = 'loading';
+                noCollectionsItem.textContent = 'No collections found';
+                foldersList.appendChild(noCollectionsItem);
+                return;
+            }
+
+            collections.forEach((collection, index) => {
+                renderCollectionItem(collection, index, foldersList, false);
+            });
+        }
+
+        // Render a single collection item (parent or child)
+        function renderFontItem(font, index, container, parentFontSet) {
+            console.log('Rendering font item:', font.name || font.displayName, 'from FontSet:', parentFontSet.displayName);
+            console.log('Font object properties:', Object.keys(font));
+            console.log('Full font object:', font);
+
+            const fontItem = document.createElement('div');
+            fontItem.className = 'collection-item font-item';
+            fontItem.dataset.assetId = font.assetId;
+            fontItem.dataset.assetType = font.assetType;
+
+            const fontLink = document.createElement('div');
+            fontLink.className = 'collection-link';
+
+            const fontIcon = document.createElement('span');
+            fontIcon.className = 'icon';
+            fontIcon.innerHTML = '📝'; // Font icon
+
+            const fontName = document.createElement('span');
+            fontName.className = 'name';
+            fontName.textContent = font.name || font.displayName || `Font ${index + 1}`;
+
+            fontLink.appendChild(fontIcon);
+            fontLink.appendChild(fontName);
+            fontItem.appendChild(fontLink);
+
+            // Add click handler for font selection
+            fontLink.addEventListener('click', async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Remove selection from other fonts
+                container.querySelectorAll('.font-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+
+                // Select this font
+                fontItem.classList.add('selected');
+
+                const fontName = font.name || font.displayName;
+                console.log('Selected font:', fontName);
+                console.log('Available IDs - assetId:', font.assetId, 'id:', font.id, 'fontId:', font.fontId);
+
+                // Try to determine the correct font ID for the API call
+                const fontId = font.fontId || font.id || font.assetId;
+                console.log('Using font ID for API call:', fontId);
+
+                // Show font details in main panel
+                await showFontDetails(fontId, fontName);
+            });
+
+            container.appendChild(fontItem);
+        }
+
+        function renderCollectionItem(collection, index, parentElement, isSubItem = false) {
+            const collectionId = collection.id;
+            const collectionName = collection.name;
+            const assetType = collection.assetType;
+
+            // Count fonts based on asset type and children structure
+            let fontCount = 0;
+            let hasSubItems = false;
+
+            if (collection.children && collection.children.length > 0) {
+                if (assetType === 'Folder') {
+                    // For folders, count fonts from all child types (FontSets, WebProjects, and direct Variations)
+                    fontCount = collection.children.reduce((total, child) => {
+                        if (child.assetType === 'FontSet' && child.children) {
+                            // Count fonts in FontSets
+                            return total + child.children.filter(c => c.assetType === 'Variation').length;
+                        } else if (child.assetType === 'WebProject' && child.children) {
+                            // Count fonts in WebProjects
+                            return total + child.children.filter(c => c.assetType === 'Variation').length;
+                        } else if (child.assetType === 'Variation') {
+                            // Count direct font variations
+                            return total + 1;
+                        }
+                        return total;
+                    }, 0);
+                    // Folders have sub-items if they contain FontSets, WebProjects, or direct fonts
+                    hasSubItems = collection.children.some(child =>
+                        child.assetType === 'FontSet' ||
+                        child.assetType === 'WebProject' ||
+                        child.assetType === 'Variation'
+                    );
+                } else if (assetType === 'FontSet' || assetType === 'WebProject') {
+                    // For FontSets and WebProjects, count variation children directly (both can only contain fonts)
+                    fontCount = collection.children.filter(child => child.assetType === 'Variation').length;
+                    // FontSets and WebProjects have sub-items (fonts) if they have variations
+                    hasSubItems = fontCount > 0;
+                } else {
+                    // For other types, just count children
+                    fontCount = collection.children.length;
+                }
+            }
+
+            // Choose appropriate icon based on asset type
+            let icon = '📁';
+            if (assetType === 'FontSet') icon = '🔤';
+            else if (assetType === 'WebProject') icon = '🌐';
+
+            // Create the main item container
+            const itemContainer = document.createElement('div');
+
+            // Create the folder item
+            const folderItem = document.createElement('div');
+            folderItem.className = isSubItem ? 'sub-folder-item' : 'folder-item';
+            if (hasSubItems && !isSubItem) {
+                folderItem.classList.add('has-children');
+            }
+
+            folderItem.dataset.collectionId = collectionId;
+
+            const expandIcon = hasSubItems ? '<span class="folder-expand-icon">▶</span>' : '';
+            const countClass = isSubItem ? 'sub-folder-count' : 'folder-count';
+
+            folderItem.innerHTML = `
+                <span>${expandIcon}${icon} ${collectionName}</span>
+                <span class="${countClass}">${fontCount}</span>
+            `;
+
+            // Add click handler
+            folderItem.addEventListener('click', (e) => {
+                e.stopPropagation();
+
+                if (hasSubItems) {
+                    // Toggle expansion for items with children (folders or fontsets)
+                    toggleSubFolders(itemContainer, collection);
+                }
+
+                // Show collection details
+                showCollection({
+                    id: collectionId,
+                    name: collectionName,
+                    assetType: assetType,
+                    fontCount: fontCount,
+                    children: collection.children,
+                    ...collection
+                });
+            });
+
+            itemContainer.appendChild(folderItem);
+
+            // Create sub-folders container if this item has children
+            if (hasSubItems) {
+                const subFoldersContainer = document.createElement('div');
+                subFoldersContainer.className = 'sub-folders';
+                subFoldersContainer.dataset.parentId = collectionId;
+
+                if (assetType === 'Folder') {
+                    // For folders, render all child types (FontSets, WebProjects, and direct fonts)
+                    collection.children.forEach((child, childIndex) => {
+                        if (child.assetType === 'FontSet' || child.assetType === 'WebProject') {
+                            // Render FontSets and WebProjects as sub-items
+                            renderCollectionItem(child, childIndex, subFoldersContainer, true);
+                        } else if (child.assetType === 'Variation') {
+                            // Render direct font variations
+                            subFoldersContainer.classList.add('has-fonts');
+                            renderFontItem(child, childIndex, subFoldersContainer, collection);
+                        }
+                    });
+                } else if (assetType === 'FontSet' || assetType === 'WebProject') {
+                    // For FontSets and WebProjects, render individual font variations only
+                    subFoldersContainer.classList.add('has-fonts');
+                    collection.children.forEach((font, fontIndex) => {
+                        if (font.assetType === 'Variation') {
+                            renderFontItem(font, fontIndex, subFoldersContainer, collection);
+                        }
+                    });
+                }
+
+                itemContainer.appendChild(subFoldersContainer);
+            }
+
+            parentElement.appendChild(itemContainer);
+        }
+
+        // Toggle sub-folders visibility
+        function toggleSubFolders(container, collection) {
+            const subFoldersContainer = container.querySelector('.sub-folders');
+            const expandIcon = container.querySelector('.folder-expand-icon');
+
+            if (subFoldersContainer && expandIcon) {
+                const isExpanded = subFoldersContainer.classList.contains('expanded');
+
+                if (isExpanded) {
+                    subFoldersContainer.classList.remove('expanded');
+                    expandIcon.classList.remove('expanded');
+                } else {
+                    subFoldersContainer.classList.add('expanded');
+                    expandIcon.classList.add('expanded');
+                }
+            }
+        }
+
+        // Show collection details
+        function showCollection(collection) {
+            pageTitle.textContent = `Collection: ${collection.name}`;
+            folderTitle.textContent = collection.name;
+
+            // Update active state for both folder-item and sub-folder-item
+            document.querySelectorAll('.folder-item, .sub-folder-item').forEach(item => item.classList.remove('active'));
+            const activeItem = document.querySelector(`[data-collection-id="${collection.id}"]`);
+            if (activeItem) {
+                activeItem.classList.add('active');
+            }
+
+            // Show folder view
+            welcomeView.classList.add('hidden');
+            fontView.classList.add('hidden');
+            folderView.classList.remove('hidden');
+
+            // Render collection details
+            folderDetails.innerHTML = `
+                <div class="detail-card">
+                    <div class="detail-label">Collection ID</div>
+                    <div class="detail-value">${collection.id}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Asset Type</div>
+                    <div class="detail-value">${collection.assetType || 'Unknown'}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Font Count</div>
+                    <div class="detail-value">${collection.fontCount || 0}</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Children Count</div>
+                    <div class="detail-value">${collection.children ? collection.children.length : 0}</div>
+                </div>
+            `;
+
+            // Generate description based on asset type and contents
+            let description = '';
+            if (collection.assetType === 'Folder') {
+                const fontSets = collection.children ? collection.children.filter(c => c.assetType === 'FontSet').length : 0;
+                description = `This folder contains ${fontSets} font set(s) with a total of ${collection.fontCount} font variations.`;
+            } else if (collection.assetType === 'FontSet') {
+                description = `This font set contains ${collection.fontCount} font variations.`;
+            } else if (collection.assetType === 'WebProject') {
+                description = `This is a web project collection.`;
+            } else {
+                description = `Collection of type "${collection.assetType}".`;
+            }
+
+            folderDescription.innerHTML = `<p style="margin-top: 20px; color: #7f8c8d; line-height: 1.6;">${description}</p>`;
+        }
+
+        // Show font details
+        async function showFontDetails(fontAssetId, fontName) {
+            try {
+                pageTitle.textContent = `Font: ${fontName}`;
+                fontTitle.textContent = fontName;
+
+                // Hide other views and show font view
+                welcomeView.classList.add('hidden');
+                folderView.classList.add('hidden');
+                fontView.classList.remove('hidden');
+
+                // Show loading state
+                fontLoading.classList.remove('hidden');
+                fontDetails.innerHTML = '';
+
+                console.log('Fetching font details for asset ID:', fontAssetId);
+                const response = await fetch(`/api/proxy/v1/fonts/${fontAssetId}`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                console.log('Font details response status:', response.status);
+                const result = await response.json();
+                console.log('Font details API Response:', result);
+
+                fontLoading.classList.add('hidden');
+
+                if (response.ok) {
+                    // The API response has a 'font' property containing the font data
+                    const fontData = result.font || result.data || result;
+                    renderFontDetails(fontData);
+                } else {
+                    fontDetails.innerHTML = `
+                        <div class="detail-card" style="border-left-color: #e74c3c;">
+                            <div class="detail-label">Error</div>
+                            <div class="detail-value">Failed to load font details: ${result.message || response.statusText}</div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error fetching font details:', error);
+                fontLoading.classList.add('hidden');
+                fontDetails.innerHTML = `
+                    <div class="detail-card" style="border-left-color: #e74c3c;">
+                        <div class="detail-label">Error</div>
+                        <div class="detail-value">Failed to load font details: ${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        // Render font details
+        function renderFontDetails(fontData) {
+            const previewText = "The quick brown fox jumps over the lazy dog";
+
+            fontDetails.innerHTML = `
+                ${fontData.sample ? `
+                <div class="font-sample" style="grid-column: 1 / -1; background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #27ae60; text-align: center; margin-bottom: 20px;">
+                    <div class="detail-label" style="margin-bottom: 15px;">Official Font Sample</div>
+                    <img src="${fontData.sample}" alt="Font sample for ${fontData.friendlyName || fontData.name}" 
+                         style="max-width: 100%; height: auto; border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);" 
+                         onerror="this.parentElement.style.display='none';" />
+                </div>
+                ` : ''}
+                
+                <div class="font-download-section" style="grid-column: 1 / -1; margin-bottom: 20px;">
+                    <button class="download-btn" onclick="downloadFont('${fontData.fontId || fontData.id}')" 
+                            style="background: #27ae60; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background-color 0.2s; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 16px;">⬇</span>
+                        Download Font
+                    </button>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Font Name</div>
+                    <div class="detail-value">${fontData.friendlyName || fontData.name || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">PostScript Name</div>
+                    <div class="detail-value">${fontData.psName || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Font ID</div>
+                    <div class="detail-value">${fontData.fontId || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Font Family</div>
+                    <div class="detail-value">${fontData.family || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Style</div>
+                    <div class="detail-value">${fontData.style || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Weight (CSS)</div>
+                    <div class="detail-value">${fontData.weightCSS || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Foundry</div>
+                    <div class="detail-value">${fontData.foundry || 'Unknown'}</div>
+                </div>
+                
+                <div class="font-metadata">
+                    <div class="detail-label">Format</div>
+                    <div class="detail-value">${fontData.format || 'Unknown'}</div>
+                </div>
+                
+                ${fontData.description ? `
+                <div class="font-metadata" style="grid-column: 1 / -1;">
+                    <div class="detail-label">Description</div>
+                    <div class="detail-value">${fontData.description}</div>
+                </div>
+                ` : ''}
+                
+                ${fontData.classification && fontData.classification.length > 0 ? `
+                <div class="font-metadata" style="grid-column: 1 / -1;">
+                    <div class="detail-label">Classification</div>
+                    <div class="detail-value">
+                        ${fontData.classification.map(cls => `<span style="background: #e8f5e8; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-right: 5px; color: #2e7d32;">${cls}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${fontData.tag && fontData.tag.length > 0 ? `
+                <div class="font-metadata" style="grid-column: 1 / -1;">
+                    <div class="detail-label">Tags</div>
+                    <div class="detail-value">
+                        ${fontData.tag.map(tag => `<span style="background: #e3f2fd; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-right: 5px;">${tag}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${fontData.publicTags && fontData.publicTags.length > 0 ? `
+                <div class="font-metadata" style="grid-column: 1 / -1;">
+                    <div class="detail-label">Public Tags</div>
+                    <div class="detail-value" style="max-height: 200px; overflow-y: auto;">
+                        ${fontData.publicTags.map(tag => `<span style="background: #fff3e0; padding: 2px 8px; border-radius: 12px; font-size: 11px; margin-right: 3px; margin-bottom: 3px; display: inline-block; color: #e65100;">${tag}</span>`).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            `;
+        }
+
+        // Download font function
+        async function downloadFont(fontId) {
+            if (!fontId) {
+                alert('Font ID not available for download');
+                return;
+            }
+
+            try {
+                const downloadBtn = document.querySelector('.download-btn');
+                const originalText = downloadBtn.innerHTML;
+
+                // Update button to show loading state
+                downloadBtn.innerHTML = '<span style="font-size: 16px;">⏳</span> Downloading...';
+                downloadBtn.disabled = true;
+                downloadBtn.style.background = '#95a5a6';
+
+                // Make request to download endpoint
+                const response = await fetch(`/api/proxy/v1/fonts/${encodeURIComponent(fontId)}/download?directDownload=true`, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                }
+
+                // Get the filename from the response headers or use a default
+                const contentDisposition = response.headers.get('content-disposition');
+                let filename = `font_${fontId}.otf`;
+                if (contentDisposition) {
+                    const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                    if (filenameMatch && filenameMatch[1]) {
+                        filename = filenameMatch[1].replace(/['"]/g, '');
+                    }
+                }
+
+                // Create blob and download using a more secure approach
+                const blob = await response.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+
+                // Create a temporary anchor element
+                const a = document.createElement('a');
+                a.style.display = 'none';
+
+                // Set href to the blob URL (not user-controlled)
+                a.href = blobUrl;
+                a.download = filename;
+
+                // Append to body, trigger click, then clean up
+                document.body.appendChild(a);
+                a.click();
+
+                // Clean up immediately
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 100);
+
+                // Reset button
+                downloadBtn.innerHTML = '<span style="font-size: 16px;">✓</span> Downloaded!';
+                downloadBtn.style.background = '#27ae60';
+
+                // Reset to original state after 2 seconds
+                setTimeout(() => {
+                    downloadBtn.innerHTML = originalText;
+                    downloadBtn.disabled = false;
+                    downloadBtn.style.background = '#27ae60';
+                }, 2000);
+
+            } catch (error) {
+                console.error('Download error:', error);
+
+                // Reset button and show error
+                const downloadBtn = document.querySelector('.download-btn');
+                downloadBtn.innerHTML = '<span style="font-size: 16px;">❌</span> Download Failed';
+                downloadBtn.style.background = '#e74c3c';
+                downloadBtn.disabled = false;
+
+                // Reset to original state after 3 seconds
+                setTimeout(() => {
+                    downloadBtn.innerHTML = '<span style="font-size: 16px;">⬇</span> Download Font';
+                    downloadBtn.style.background = '#27ae60';
+                }, 3000);
+
+                alert(`Download failed: ${error.message}`);
+            }
+        }
+
+        // Show login screen
+        function showLogin() {
+            loginScreen.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+            isAuthenticated = false;
+            authStep = 'initial';
+            updateLoginUI();
+        }
+
+        // Show main app
+        function showApp() {
+            loginScreen.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            isAuthenticated = true;
+        }
+
+        // Handle logout
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            showLogin();
+            pageTitle.textContent = 'Font Library Dashboard';
+            welcomeView.classList.remove('hidden');
+            folderView.classList.add('hidden');
+            foldersList.innerHTML = '';
+            collections = [];
+        }
+
+        // Navigation handling
+        document.addEventListener('click', (e) => {
+            if (e.target.matches('[data-view]')) {
+                const view = e.target.dataset.view;
+
+                // Update active nav item
+                document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+                e.target.classList.add('active');
+
+                // Update active folder item
+                document.querySelectorAll('.folder-item').forEach(item => item.classList.remove('active'));
+
+                if (view === 'home') {
+                    pageTitle.textContent = 'Font Library Dashboard';
+                    welcomeView.classList.remove('hidden');
+                    folderView.classList.add('hidden');
+                } else if (view === 'browse') {
+                    pageTitle.textContent = 'Browse Fonts';
+                    welcomeView.classList.add('hidden');
+                    folderView.classList.remove('hidden');
+                    folderTitle.textContent = 'Browse All Fonts';
+                    folderDetails.innerHTML = `
+                        <div class="detail-card">
+                            <div class="detail-label">Total Fonts</div>
+                            <div class="detail-value">${collections.reduce((sum, col) => sum + (col.fontCount || 0), 0)}</div>
+                        </div>
+                        <div class="detail-card">
+                            <div class="detail-label">Collections</div>
+                            <div class="detail-value">${collections.length}</div>
+                        </div>
+                    `;
+                    folderDescription.innerHTML = '<p style="margin-top: 20px; color: #7f8c8d; line-height: 1.6;">Browse through all available fonts in your library.</p>';
+                }
+            }
+        });
+
+        // Event listeners
+        loginBtn.addEventListener('click', () => {
+            if (authStep === 'error' && loginBtn.textContent.includes('Retry')) {
+                // Retry loading collections
+                authStep = 'loading';
+                updateLoginUI();
+                setTimeout(async () => {
+                    await loadCollections();
+                }, 1000);
+            } else {
+                // Normal login flow
+                redirectToLogin();
+            }
+        });
+        logoutBtn.addEventListener('click', logout);
+
+        // Error logout button in sidebar
+        const errorLogoutBtn = document.getElementById('error-logout-btn');
+        errorLogoutBtn.addEventListener('click', logout);
+
+        // Browse Fonts toggle
+        const browseFontsLink = document.getElementById('browse-fonts-link');
+        const fontSearchFormContainer = document.getElementById('font-search-form-container');
+        browseFontsLink.addEventListener('click', function (e) {
+            e.preventDefault();
+            if (fontSearchFormContainer.style.display === 'none') {
+                fontSearchFormContainer.style.display = 'block';
+                // Always repopulate filters when showing the form
+                populateFontFilters();
+                // Show search results if present
+                const searchFolder = document.getElementById('search-results-folder');
+                if (searchFolder) searchFolder.style.display = '';
+                const searchFontsContainer = document.getElementById('search-results-fonts');
+                if (searchFontsContainer) searchFontsContainer.style.display = '';
+            } else {
+                fontSearchFormContainer.style.display = 'none';
+                // Remove search results from sidebar
+                const searchFolder = document.getElementById('search-results-folder');
+                if (searchFolder) searchFolder.remove();
+                const searchFontsContainer = document.getElementById('search-results-fonts');
+                if (searchFontsContainer) searchFontsContainer.remove();
+            }
+        });
+
+        // Font search form submission
+        const fontSearchForm = document.getElementById('font-search-form');
+        // Pagination state
+        let currentPage = 1;
+        const pageSize = 20;
+        let totalFonts = 0;
+        let totalPages = 1;
+
+        // Helper to render search results for a given page
+        async function renderSearchResults(pageNum) {
+            // Get selected values from multi-selects
+            function getSelectedValues(select) {
+                return Array.from(select.selectedOptions).map(opt => opt.value).filter(Boolean);
+            }
+            const name = document.getElementById('font-name').value.trim();
+            const classificationArr = getSelectedValues(document.getElementById('font-classification'));
+            const tagArr = getSelectedValues(document.getElementById('font-tags'));
+            const languageArr = getSelectedValues(document.getElementById('font-languages'));
+            // Build payload
+            const payload = {
+                pageSize,
+                pageNumber: pageNum
+            };
+            if (name) payload.name = name;
+            if (tagArr.length) payload.tag = tagArr;
+            if (classificationArr.length) payload.classification = classificationArr;
+            if (languageArr.length) payload.languages = languageArr;
+            if (name) {
+                payload.searchSettings = { partial: ["name"] };
+            }
+            try {
+                const response = await fetch('/api/proxy/v1/fonts/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                // Display search results as a folder in the collections section
+                const foldersList = document.getElementById('folders-list');
+                // Remove previous search results folder if present
+                const prevSearchFolder = document.getElementById('search-results-folder');
+                if (prevSearchFolder) prevSearchFolder.remove();
+                const prevSearchFontsContainer = document.getElementById('search-results-fonts');
+                if (prevSearchFontsContainer) prevSearchFontsContainer.remove();
+                // Create search results folder
+                const searchFolder = document.createElement('div');
+                searchFolder.className = 'folder-item has-children';
+                searchFolder.id = 'search-results-folder';
+                // Use correct pagination info from API response
+                const currentApiPage = result.pageNumber || pageNum;
+                const apiPageSize = result.pageSize || pageSize;
+                const apiItemCount = result.itemCount || (result.fonts ? result.fonts.length : 0);
+                const apiTotal = result.total || apiItemCount;
+                totalFonts = apiTotal;
+                totalPages = Math.max(1, Math.ceil(apiTotal / apiPageSize));
+                searchFolder.innerHTML = `<span><span class="folder-expand-icon expanded">▶</span>🔍 Search Results</span><span class="folder-count">${apiTotal}</span>`;
+                foldersList.prepend(searchFolder);
+                // Create container for font links
+                const searchFontsContainer = document.createElement('div');
+                searchFontsContainer.className = 'sub-folders expanded';
+                searchFontsContainer.id = 'search-results-fonts';
+                searchFolder.after(searchFontsContainer);
+                // Wait for all images to load before setting maxHeight
+                // Only set maxHeight to scrollHeight when expanded, never to zero except on collapse
+                // When expanded, always set maxHeight to 'none' so it never collapses
+                if (searchFontsContainer.classList.contains('expanded')) {
+                    searchFontsContainer.style.maxHeight = 'none';
+                }
+                // Create font links for each result
+                if (result.fonts && result.fonts.length) {
+                    result.fonts.forEach((font, idx) => {
+                        const fontItem = document.createElement('div');
+                        fontItem.className = 'collection-item font-item';
+                        fontItem.dataset.assetId = font.fontId || font.id;
+                        fontItem.dataset.assetType = 'SearchResult';
+                        const fontLink = document.createElement('div');
+                        fontLink.className = 'collection-link';
+                        const fontIcon = document.createElement('span');
+                        fontIcon.className = 'icon';
+                        fontIcon.innerHTML = '📝';
+                        const fontName = document.createElement('span');
+                        fontName.className = 'name';
+                        fontName.textContent = font.name || font.friendlyName || `Font ${idx + 1}`;
+                        fontLink.appendChild(fontIcon);
+                        fontLink.appendChild(fontName);
+                        fontItem.appendChild(fontLink);
+                        fontLink.addEventListener('click', async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            // Remove selection from other fonts
+                            foldersList.querySelectorAll('.font-item').forEach(item => {
+                                item.classList.remove('selected');
+                            });
+                            fontItem.classList.add('selected');
+                            const fontId = font.fontId || font.id;
+                            await showFontDetails(fontId, font.name || font.friendlyName);
+                        });
+                        searchFontsContainer.appendChild(fontItem);
+                    });
+                } else {
+                    // Show a message if no results
+                    const noResults = document.createElement('div');
+                    noResults.style.color = '#fff';
+                    noResults.style.textAlign = 'center';
+                    noResults.style.padding = '16px';
+                    noResults.textContent = 'No fonts found.';
+                    searchFontsContainer.appendChild(noResults);
+                }
+                // Pagination controls (always visible)
+                const paginationContainer = document.createElement('div');
+                paginationContainer.style.display = 'flex';
+                paginationContainer.style.justifyContent = 'center';
+                paginationContainer.style.alignItems = 'center';
+                paginationContainer.style.padding = '12px 0';
+                paginationContainer.style.gap = '8px';
+                paginationContainer.style.background = '#34495e';
+                paginationContainer.style.borderRadius = '0 0 4px 4px';
+                paginationContainer.style.position = 'sticky';
+                paginationContainer.style.bottom = '0';
+                // Previous button
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = 'Previous';
+                prevBtn.style.padding = '6px 14px';
+                prevBtn.style.borderRadius = '4px';
+                prevBtn.style.border = 'none';
+                prevBtn.style.background = '#2c3e50';
+                prevBtn.style.color = '#fff';
+                prevBtn.style.cursor = 'pointer';
+                prevBtn.disabled = currentApiPage === 1;
+                prevBtn.onclick = () => {
+                    if (currentApiPage > 1) {
+                        currentPage = currentApiPage - 1;
+                        renderSearchResults(currentPage);
+                    }
+                };
+                // Next button
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = 'Next';
+                nextBtn.style.padding = '6px 14px';
+                nextBtn.style.borderRadius = '4px';
+                nextBtn.style.border = 'none';
+                nextBtn.style.background = '#2c3e50';
+                nextBtn.style.color = '#fff';
+                nextBtn.style.cursor = 'pointer';
+                nextBtn.disabled = currentApiPage === totalPages;
+                nextBtn.onclick = () => {
+                    if (currentApiPage < totalPages) {
+                        currentPage = currentApiPage + 1;
+                        renderSearchResults(currentPage);
+                    }
+                };
+                // Page info
+                const pageInfo = document.createElement('span');
+                pageInfo.textContent = `Page ${currentApiPage} of ${totalPages}`;
+                pageInfo.style.color = '#fff';
+                pageInfo.style.fontSize = '13px';
+                pageInfo.style.margin = '0 8px';
+                paginationContainer.appendChild(prevBtn);
+                paginationContainer.appendChild(pageInfo);
+                paginationContainer.appendChild(nextBtn);
+                searchFontsContainer.appendChild(paginationContainer);
+                // Expand/collapse logic for search results folder
+                searchFolder.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    const expandIcon = searchFolder.querySelector('.folder-expand-icon');
+                    const isExpanded = searchFontsContainer.classList.contains('expanded');
+                    if (isExpanded) {
+                        searchFontsContainer.classList.remove('expanded');
+                        expandIcon.classList.remove('expanded');
+                        searchFontsContainer.style.maxHeight = '0';
+                    } else {
+                        searchFontsContainer.classList.add('expanded');
+                        expandIcon.classList.add('expanded');
+                        searchFontsContainer.style.maxHeight = searchFontsContainer.scrollHeight + 'px';
+                    }
+                });
+            } catch (err) {
+                alert('Font search failed: ' + err.message);
+            }
+        }
+        // Initial render
+        fontSearchForm.addEventListener('submit', function (e) {
+            e.preventDefault();
+            currentPage = 1;
+            renderSearchResults(currentPage);
+        });
+
+        // Add this after DOMContentLoaded or at the end of your script
+        async function populateFontFilters() {
+            try {
+                const response = await fetch('/api/proxy/v1/fonts/filterslookup?lookup=classification&lookup=language&lookup=tags', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                const result = await response.json();
+                // Populate dropdowns
+                const classificationSelect = document.getElementById('font-classification');
+                const tagsSelect = document.getElementById('font-tags');
+                const languagesSelect = document.getElementById('font-languages');
+                const searchBtn = document.getElementById('font-search-btn');
+                // Show loading state
+                classificationSelect.innerHTML = '<option>Loading...</option>';
+                tagsSelect.innerHTML = '<option>Loading...</option>';
+                languagesSelect.innerHTML = '<option>Loading...</option>';
+                searchBtn.disabled = true;
+                let loadedCount = 0;
+                // Populate dropdowns using correct keys from API response
+                if (result.classification && Array.isArray(result.classification)) {
+                    classificationSelect.innerHTML = '<option value="">Any</option>' + result.classification.map(c => `<option value="${c}">${c}</option>`).join('');
+                    loadedCount++;
+                }
+                if (result.tags && Array.isArray(result.tags)) {
+                    tagsSelect.innerHTML = '<option value="">Any</option>' + result.tags.map(t => `<option value="${t}">${t}</option>`).join('');
+                    loadedCount++;
+                }
+                if (result.language && Array.isArray(result.language)) {
+                    languagesSelect.innerHTML = '<option value="">Any</option>' + result.language.map(l => `<option value="${l}">${l}</option>`).join('');
+                    loadedCount++;
+                }
+                // Enable search button only if all dropdowns are loaded
+                if (loadedCount === 3) {
+                    searchBtn.disabled = false;
+                }
+            } catch (err) {
+                console.error('Failed to load font filters:', err);
+            }
+        }
+        document.addEventListener('DOMContentLoaded', populateFontFilters);
+
+        // Main initialization
+        async function main() {
+            const { code } = getQueryParams();
+            if (code) {
+                // User returned from OAuth provider
+                await exchangeCodeForTokens(code);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else {
+                // Check if already authenticated
+                try {
+                    authStep = 'loading';
+                    updateLoginUI();
+                    const response = await fetch('/api/session');
+                    const sessionData = await response.json();
+                    if (sessionData.authenticated && sessionData.hasValidTokens) {
+                        isAuthenticated = true;
+                        showStatus('Existing session found. Loading your collections...', 'info');
+                        await loadCollections();
+                    } else {
+                        authStep = 'initial';
+                        updateLoginUI();
+                        showLogin();
+                    }
+                } catch (error) {
+                    console.error('Session check failed:', error);
+                    authStep = 'initial';
+                    updateLoginUI();
+                    showLogin();
+                }
+            }
+        }
+        // Start the application
+        main();
+    </script>
+</body>
+
+</html>

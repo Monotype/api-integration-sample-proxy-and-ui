@@ -7,6 +7,7 @@ import { RedisStore } from 'connect-redis';
 import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+import * as readline from 'readline';
 
 // Load environment variables
 dotenv.config();
@@ -19,11 +20,11 @@ const app = express();
 const port = process.env.PORT || 8081;
 
 const API_DOMAIN = process.env.API_DOMAIN || 'pp-api.monotype.com';
-const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID || '1LJYcGtnPp4azOhesGL94NuIu627E1DC';
+const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
 const AUTH0_CLIENT_SECRET = process.env.AUTH0_CLIENT_SECRET; // REQUIRED for Auth Code flow
 const AUTH0_SCOPE = 'openid email profile';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const SESSION_SECRET = process.env.SESSION_SECRET || 'b95321ee9b7f74085ef59a3644ef20284a8dd37c3423a391402b04842731867745ba2f3bfd52f22ba49523f78165550522643b80e05ec0b71896a5cad7de6ac5';
+const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_LIFESPAN = 24 * 60 * 60 * 1000; // 24 hours in ms
 const tokenUrl = `https://${API_DOMAIN}/v2/oauth/token`;
 
@@ -63,7 +64,16 @@ app.use(session({
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
+// 2️⃣ Middleware for non-API requests
+app.use((req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) return next();
+    if (req.path.endsWith('.html')) return next();
+    if (req.path.endsWith('/')) return next();
+    if (req.path.endsWith('app.css')) return next();
+    if (req.path.endsWith('app.js')) return next();
+    return res.sendStatus(404);
+});
 // Serve static files
 app.use(express.static(path.join(__dirname)));
 
@@ -76,12 +86,14 @@ app.get('/api/authorize', (req, res) => {
         return res.status(400).json({ error: 'redirect_uri parameter is required' });
     }
 
-    const authUrl = `https://${API_DOMAIN}/v2/oauth/authorize` +
+    let authUrl = `https://${API_DOMAIN}/v2/oauth/authorize` +
         `?response_type=code` +
         `&client_id=${AUTH0_CLIENT_ID}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
         `&scope=${encodeURIComponent(AUTH0_SCOPE)}`;
-
+    if (req?.query?.accessToken) {
+        authUrl += `&accessKey=${encodeURIComponent(req.query.accessToken)}`;
+    }
     console.log('Redirecting to Auth0:', authUrl);
     res.redirect(authUrl);
 });
@@ -90,18 +102,16 @@ app.post('/api/token', async (req, res) => {
     try {
         const body = {
             grant_type: 'authorization_code',
-            client_id: AUTH0_CLIENT_ID,
-            client_secret: AUTH0_CLIENT_SECRET,
             code: req.body.code,
             redirect_uri: req.body.redirect_uri
         };
-
+        const authCode = btoa(AUTH0_CLIENT_ID + ':' + AUTH0_CLIENT_SECRET);
         const formBody = new URLSearchParams(body).toString();
         const response = await fetch(tokenUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'x-client-id': AUTH0_CLIENT_ID
+                'Authorization': `Basic ${authCode}`
             },
             body: formBody
         });
@@ -308,9 +318,59 @@ app.use('/api/proxy', async (req, res) => {
 
             res.status(response.status).send(buffer);
         } else {
-            // Handle JSON responses
-            const data = await response.json();
-            res.status(response.status).json(data);
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/event-stream')) {
+                // Set up streaming response to browser
+                res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+                res.setHeader('Access-Control-Allow-Origin', '*');
+                res.setHeader('Access-Control-Allow-Headers', 'Cache-Control');
+
+                // Set longer timeout for streaming responses
+                res.setTimeout(0); // Disable timeout
+                req.setTimeout(0); // Disable request timeout
+
+                // Handle client disconnect
+                req.on('close', () => {
+                    console.log('Client disconnected from stream');
+                    if (response.body && typeof response.body.destroy === 'function') {
+                        response.body.destroy();
+                    }
+                });
+
+                req.on('error', (err) => {
+                    console.error('Request error during stream:', err);
+                    if (response.body && typeof response.body.destroy === 'function') {
+                        response.body.destroy();
+                    }
+                });
+
+                // Handle streaming data manually to avoid pipe buffering issues
+                response.body.on('data', (chunk) => {
+                    // Write the chunk exactly as received without any modification
+                    res.write(chunk);
+                });
+
+                response.body.on('end', () => {
+                    console.log('Upstream stream ended');
+                    res.end();
+                });
+
+                response.body.on('error', (err) => {
+                    console.error('Stream error:', err);
+                    res.end();
+                });
+            }
+            else {
+                // Handle JSON responses
+                if (response.status === 204 || response.headers.get('content-length') === '0') {
+                    res.status(response.status).json({ message: `${response.status} response` });
+                } else {
+                    const data = await response.json();
+                    res.status(response.status).json(data);
+                }
+            }
         }
     } catch (error) {
         console.error('Proxy error:', error);

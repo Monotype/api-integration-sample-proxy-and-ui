@@ -112,44 +112,94 @@
 
         async function makeAPIRequest() {
             const infoDiv = document.getElementById('info-div');
-            infoDiv.innerHTML = "";
+            infoDiv.textContent = ""; // Use textContent instead of innerHTML
             const data = JSON.parse(document.getElementById("query").value);
 
 
-            // Sanitize HTTP method
-            const allowedMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'];
-            let selectedMethod = String(methodSelect.value).toUpperCase();
-            if (!allowedMethods.includes(selectedMethod)) {
-                infoDiv.innerHTML = `<span style="color:red">HTTP method ${methodSelect.value} is not allowed.</span>`;
-                return;
+            // Sanitize methodSelect.value to accepted HTTP methods
+            const allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+            let method = methodSelect.value;
+            if (!allowedMethods.includes(method)) {
+                method = 'POST';
             }
-
-            // Send the request using fetch
             const config = {
-                method: selectedMethod,
+                method,
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json'
                 }
             };
 
-            if (selectedMethod !== 'GET') {
+            if (method !== 'GET') {
                 config.body = JSON.stringify(data);
             }
 
             const response = await fetch(`/api/proxy${endpointInput.value}`, config);
-            const result = await response.json();
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/event-stream')) {
+                infoDiv.textContent = ""; // Use textContent instead of innerHTML
+                // Handle streaming SSE from your proxy
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let buffer = '';
 
-            // Check if the response has an authentication error
-            if (result.error === "Not authenticated") {
-                currentStep = 0;
-                nextButton.style.display = 'block';
-                queryHolder.style.display = 'none';
-                return;
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+
+                    // Split on SSE message boundary
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop(); // keep the last partial chunk
+
+                    for (const part of parts) {
+                        if (part.startsWith('data:')) {
+                            const data = part.slice(5).trim();
+
+                            // Create pre element safely
+                            const pre = document.createElement('pre');
+                            pre.textContent = JSON.stringify(JSON.parse(data), null, 4);
+                            infoDiv.appendChild(pre);
+
+                            if (data === '[DONE]') {
+                                console.log('Stream complete');
+                                break;
+                            }
+
+                            try {
+                                const obj = JSON.parse(data);
+                                console.log('Stream event:', obj);
+                                // TODO: Update your UI incrementally here
+                            } catch {
+                                console.log('Stream text:', data);
+                            }
+                        }
+                    }
+                }
+            } else {
+                let result;
+                if (response.status === 204 || response.headers.get('content-length') === '0') {
+                    result = { message: "No Content" };
+                } else {
+                    result = await response.json();
+                }
+
+                // Check if the response has an authentication error
+                if (result.error === "Not authenticated") {
+                    currentStep = 0;
+                    nextButton.style.display = 'block';
+                    queryHolder.style.display = 'none';
+                    return;
+                }
+
+                const formattedJson = JSON.stringify(result, null, 4);
+
+                // Create pre element safely
+                const pre = document.createElement('pre');
+                pre.textContent = formattedJson;
+                infoDiv.appendChild(pre);
             }
-
-            const formattedJson = JSON.stringify(result, null, 4);
-            infoDiv.innerHTML = "<pre>" + formattedJson + "</pre>";
         }
 
         async function nextStep() {
