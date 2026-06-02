@@ -246,7 +246,6 @@ app.use('/api/proxy', async (req, res) => {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
-                            'x-client-id': AUTH0_CLIENT_ID,
                         },
                         body: formBody
                     });
