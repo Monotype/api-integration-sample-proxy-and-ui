@@ -245,9 +245,7 @@ app.use('/api/proxy', async (req, res) => {
                     const refreshResponse = await fetch(tokenUrl, {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'x-client-id': AUTH0_CLIENT_ID,
-
+                            'Content-Type': 'application/x-www-form-urlencoded'
                         },
                         body: formBody
                     });
