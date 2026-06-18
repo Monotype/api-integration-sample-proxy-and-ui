@@ -74,6 +74,10 @@ app.use((req, res, next) => {
     if (req.path.endsWith('app.js')) return next();
     return res.sendStatus(404);
 });
+app.use((req, res, next) => {
+    console.log('X-Forwarded-Proto:', req.header('X-Forwarded-Proto'));
+    next();
+});
 // Serve static files
 app.use(express.static(path.join(__dirname)));
 
