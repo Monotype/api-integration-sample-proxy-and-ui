@@ -381,6 +381,20 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', uptime: process.uptime() });
 });
 
+// Generic error handler — must be last, after all routes
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+
+    if (res.headersSent) return next(err);
+
+    const status = err.status || err.statusCode || 500;
+    const message = err.type === 'entity.parse.failed'
+        ? 'Invalid JSON in request body'
+        : status < 500 ? err.message : 'Internal server error';
+
+    res.status(status).json({ error: message });
+});
+
 // Start server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
