@@ -433,6 +433,20 @@ body {
     font-size: 16px;
 }
 
+.nav-item-caret {
+    width: 8px;
+    height: 8px;
+    margin-left: auto;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.2s ease;
+}
+
+.nav-item[aria-expanded="true"] .nav-item-caret {
+    transform: rotate(45deg);
+}
+
 .folders-list {
     overflow: visible;
 }
