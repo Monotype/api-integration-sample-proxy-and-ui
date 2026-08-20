@@ -1111,6 +1111,10 @@ async function renderSearchResults(pageNum, result) {
                 searchFontsContainer.style.maxHeight = searchFontsContainer.scrollHeight + 'px';
             }
         });
+
+        requestAnimationFrame(() => {
+            searchFolder.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
     } catch (err) {
         alert('Font search failed: ' + err.message);
     }
