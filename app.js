@@ -2,6 +2,7 @@ const AUTH0_REDIRECT_URI = window.location.origin + window.location.pathname;
 let isAuthenticated = false;
 let collections = [];
 let collectionTrees = { personal: [], shared: [] };
+let libraryTreesVisible = true;
 let authStep = 'initial'; // 'initial', 'authenticating', 'authenticated', 'loading', 'ready'
 
 // DOM Elements
@@ -266,6 +267,7 @@ function renderCollections() {
         const treeItems = collectionTrees[accessType] || [];
         const tree = document.createElement('section');
         tree.className = 'collection-tree';
+        tree.classList.toggle('hidden', !libraryTreesVisible);
 
         const heading = document.createElement('div');
         heading.className = 'collection-tree-heading';
@@ -319,7 +321,7 @@ function renderFontItem(font, index, container, parentFontSet) {
         e.stopPropagation();
 
         // Only one font may be selected anywhere in the sidebar.
-        foldersList.querySelectorAll('.font-item').forEach(item => {
+        document.querySelector('.sidebar-nav').querySelectorAll('.font-item').forEach(item => {
             item.classList.remove('selected');
         });
 
@@ -799,6 +801,7 @@ async function logout() {
     foldersList.innerHTML = '';
     collections = [];
     collectionTrees = { personal: [], shared: [] };
+    libraryTreesVisible = true;
 }
 
 // Navigation handling
@@ -819,6 +822,12 @@ document.addEventListener('click', (e) => {
             welcomeView.classList.remove('hidden');
             folderView.classList.add('hidden');
             fontView.classList.add('hidden');
+        } else if (view === 'library') {
+            libraryTreesVisible = !libraryTreesVisible;
+            foldersList.querySelectorAll('.collection-tree').forEach(tree => {
+                tree.classList.toggle('hidden', !libraryTreesVisible);
+            });
+            navItem.setAttribute('aria-expanded', String(libraryTreesVisible));
         } else if (view === 'browse') {
             pageTitle.textContent = 'Browse Fonts';
             welcomeView.classList.add('hidden');
@@ -999,7 +1008,7 @@ async function renderSearchResults(pageNum, result) {
     console.log("Rendering search results:", result);
     try {
         // Display search results as a folder in the collections section
-        const foldersList = document.getElementById('folders-list');
+        const searchResultsList = document.getElementById('search-results-list');
         // Remove previous search results folder if present
         const prevSearchFolder = document.getElementById('search-results-folder');
         if (prevSearchFolder) prevSearchFolder.remove();
@@ -1017,7 +1026,7 @@ async function renderSearchResults(pageNum, result) {
         totalFonts = apiTotal;
         totalPages = Math.max(1, Math.ceil(apiTotal / apiPageSize));
         searchFolder.innerHTML = `<span><span class="folder-expand-icon expanded">▶</span>🔍 Search Results</span><span class="folder-count">${apiTotal}</span>`;
-        foldersList.prepend(searchFolder);
+        searchResultsList.prepend(searchFolder);
         // Create container for font links
         const searchFontsContainer = document.createElement('div');
         searchFontsContainer.className = 'sub-folders expanded';
@@ -1051,7 +1060,7 @@ async function renderSearchResults(pageNum, result) {
                     e.preventDefault();
                     e.stopPropagation();
                     // Remove selection from other fonts
-                    foldersList.querySelectorAll('.font-item').forEach(item => {
+                    document.querySelector('.sidebar-nav').querySelectorAll('.font-item').forEach(item => {
                         item.classList.remove('selected');
                     });
                     fontItem.classList.add('selected');

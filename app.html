@@ -31,6 +31,16 @@
                         <span class="nav-item-icon">🏠</span>
                         <span>Home</span>
                     </button>
+                    <button class="nav-item" data-view="library" aria-expanded="true">
+                        <span class="nav-item-icon">📚</span>
+                        <span>My Library</span>
+                    </button>
+                    <div id="folders-loading" class="loading">Loading folders...</div>
+                    <div id="folders-list" class="folders-list hidden"></div>
+                    <div id="folders-error" class="loading hidden folders-error-text">
+                        <div>Failed to load folders</div>
+                        <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
+                    </div>
                     <button class="nav-item" id="browse-fonts-link" data-view="browse">
                         <span class="nav-item-icon">🔍</span>
                         <span>Browse Fonts</span>
@@ -67,12 +77,7 @@
                             </button>
                         </form>
                     </div>
-                </div>
-                <div id="folders-loading" class="loading">Loading folders...</div>
-                <div id="folders-list" class="folders-list hidden"></div>
-                <div id="folders-error" class="loading hidden folders-error-text">
-                    <div>Failed to load folders</div>
-                    <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
+                    <div id="search-results-list"></div>
                 </div>
             </nav>
         </aside>

@@ -566,6 +566,16 @@
                         <span class="nav-item-icon">🏠</span>
                         <span>Home</span>
                     </button>
+                    <button class="nav-item" data-view="library" aria-expanded="true">
+                        <span class="nav-item-icon">📚</span>
+                        <span>My Library</span>
+                    </button>
+                    <div id="folders-loading" class="loading">Loading folders...</div>
+                    <div id="folders-list" class="folders-list hidden"></div>
+                    <div id="folders-error" class="loading hidden" style="color: #e74c3c;">
+                        <div>Failed to load folders</div>
+                        <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
+                    </div>
                     <button class="nav-item" id="browse-fonts-link" data-view="browse">
                         <span class="nav-item-icon">🔍</span>
                         <span>Browse Fonts</span>
@@ -603,12 +613,7 @@
                             </button>
                         </form>
                     </div>
-                </div>
-                <div id="folders-loading" class="loading">Loading folders...</div>
-                <div id="folders-list" class="folders-list hidden"></div>
-                <div id="folders-error" class="loading hidden" style="color: #e74c3c;">
-                    <div>Failed to load folders</div>
-                    <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
+                    <div id="search-results-list"></div>
                 </div>
             </nav>
         </aside>
@@ -643,6 +648,7 @@
         let isAuthenticated = false;
         let collections = [];
         let collectionTrees = { personal: [], shared: [] };
+        let libraryTreesVisible = true;
         let authStep = 'initial'; // 'initial', 'authenticating', 'authenticated', 'loading', 'ready'
 
         // DOM Elements
@@ -939,6 +945,7 @@
                 const treeItems = collectionTrees[accessType] || [];
                 const tree = document.createElement('section');
                 tree.className = 'collection-tree';
+                tree.classList.toggle('hidden', !libraryTreesVisible);
 
                 const heading = document.createElement('div');
                 heading.className = 'collection-tree-heading';
@@ -992,7 +999,7 @@
                 e.stopPropagation();
 
                 // Only one font may be selected anywhere in the sidebar.
-                foldersList.querySelectorAll('.font-item').forEach(item => {
+                document.querySelector('.sidebar-nav').querySelectorAll('.font-item').forEach(item => {
                     item.classList.remove('selected');
                 });
 
@@ -1485,6 +1492,7 @@
             foldersList.innerHTML = '';
             collections = [];
             collectionTrees = { personal: [], shared: [] };
+            libraryTreesVisible = true;
         }
 
         // Navigation handling
@@ -1505,6 +1513,12 @@
                     welcomeView.classList.remove('hidden');
                     folderView.classList.add('hidden');
                     fontView.classList.add('hidden');
+                } else if (view === 'library') {
+                    libraryTreesVisible = !libraryTreesVisible;
+                    foldersList.querySelectorAll('.collection-tree').forEach(tree => {
+                        tree.classList.toggle('hidden', !libraryTreesVisible);
+                    });
+                    navItem.setAttribute('aria-expanded', String(libraryTreesVisible));
                 } else if (view === 'browse') {
                     pageTitle.textContent = 'Browse Fonts';
                     welcomeView.classList.add('hidden');
@@ -1611,7 +1625,7 @@
                 });
                 const result = await response.json();
                 // Display search results as a folder in the collections section
-                const foldersList = document.getElementById('folders-list');
+                const searchResultsList = document.getElementById('search-results-list');
                 // Remove previous search results folder if present
                 const prevSearchFolder = document.getElementById('search-results-folder');
                 if (prevSearchFolder) prevSearchFolder.remove();
@@ -1629,7 +1643,7 @@
                 totalFonts = apiTotal;
                 totalPages = Math.max(1, Math.ceil(apiTotal / apiPageSize));
                 searchFolder.innerHTML = `<span><span class="folder-expand-icon expanded">▶</span>🔍 Search Results</span><span class="folder-count">${apiTotal}</span>`;
-                foldersList.prepend(searchFolder);
+                searchResultsList.prepend(searchFolder);
                 // Create container for font links
                 const searchFontsContainer = document.createElement('div');
                 searchFontsContainer.className = 'sub-folders expanded';
@@ -1663,7 +1677,7 @@
                             e.preventDefault();
                             e.stopPropagation();
                             // Remove selection from other fonts
-                            foldersList.querySelectorAll('.font-item').forEach(item => {
+                            document.querySelector('.sidebar-nav').querySelectorAll('.font-item').forEach(item => {
                                 item.classList.remove('selected');
                             });
                             fontItem.classList.add('selected');
