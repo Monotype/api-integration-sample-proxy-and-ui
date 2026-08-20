@@ -18,6 +18,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 8081;
+const trustProxy = process.env.TRUST_PROXY === 'true';
+if (trustProxy) app.set('trust proxy', 1);
 
 const API_DOMAIN = process.env.API_DOMAIN || 'pp-api.monotype.com';
 const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
@@ -26,6 +28,10 @@ const AUTH0_SCOPE = 'openid email profile';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_LIFESPAN = 24 * 60 * 60 * 1000; // 24 hours in ms
+const TOKEN_REFRESH_LOCK_TTL_MS = 30_000;
+const TOKEN_REFRESH_WAIT_TIMEOUT_MS = 20_000;
+const TOKEN_REFRESH_POLL_MS = 100;
+const TOKEN_REFRESH_REQUEST_TIMEOUT_MS = 15_000;
 const tokenUrl = `https://${API_DOMAIN}/v2/oauth/token`;
 const configuredRedirectOrigins = new Set(
     (process.env.ALLOWED_REDIRECT_ORIGINS || '')
@@ -280,51 +286,18 @@ app.use('/api/proxy', async (req, res) => {
     let accessToken = null;
     if (req.session.sessionId) {
         try {
-            const accessTokenKey = `${req.session.sessionId}:access_token`;
-            const [storedAccessToken, accessTokenTtl] = await Promise.all([
-                redisClient.get(accessTokenKey),
-                redisClient.ttl(accessTokenKey)
-            ]);
-            accessToken = storedAccessToken;
-
-            if (!accessToken || accessTokenTtl <= 60) {
-                const refreshToken = await redisClient.get(`${req.session.sessionId}:refresh_token`);
-                if (refreshToken) {
-                    // Attempt to refresh token from Auth0
-                    const refreshBody = {
-                        grant_type: 'refresh_token',
-                        client_id: AUTH0_CLIENT_ID,
-                        client_secret: AUTH0_CLIENT_SECRET,
-                        refresh_token: refreshToken
-                    };
-                    const formBody = new URLSearchParams(refreshBody).toString();
-                    const refreshResponse = await fetch(tokenUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: formBody
-                    });
-                    const refreshData = await refreshResponse.json();
-
-                    if (refreshData.access_token) {
-                        accessToken = refreshData.access_token;
-                        const expiresIn = getTokenLifetime(refreshData.expires_in);
-                        await redisClient.setEx(accessTokenKey, expiresIn, accessToken);
-
-                        req.session.tokenExpiry = new Date(Date.now() + expiresIn * 1000);
-
-                        if (refreshData.refresh_token) {
-                            await redisClient.setEx(`${req.session.sessionId}:refresh_token`, expiresIn * 24, refreshData.refresh_token);
-                        }
-                    } else {
-                        return res.status(401).json({ error: 'Authentication failed', message: 'Unable to refresh expired token' });
-                    }
-                } else {
-                    return res.status(401).json({ error: 'Authentication required', message: 'No valid tokens available. Please log in again.' });
-                }
+            const tokenState = await getSessionAccessToken(req.session.sessionId);
+            accessToken = tokenState.accessToken;
+            if (tokenState.refreshed) {
+                req.session.tokenExpiry = new Date(Date.now() + tokenState.expiresIn * 1000);
             }
         } catch (error) {
+            if (error.statusCode === 401) {
+                return res.status(401).json({ error: 'Authentication required', message: error.message });
+            }
+            if (error.statusCode === 503) {
+                return res.status(503).json({ error: 'Authentication temporarily unavailable', message: error.message });
+            }
             console.error('Error getting access token from Redis:', error);
             return res.status(500).json({ error: 'Session error', message: 'Failed to retrieve authentication tokens' });
         }
@@ -473,7 +446,10 @@ function isAllowedRedirectUri(req, value) {
         if (configuredRedirectOrigins.size > 0) {
             return configuredRedirectOrigins.has(redirectUrl.origin);
         }
-        return redirectUrl.host === req.get('host');
+        const requestHost = req.get('host');
+        if (!requestHost) return false;
+        const requestOrigin = new URL(`${req.protocol}://${requestHost}`).origin;
+        return redirectUrl.origin === requestOrigin;
     } catch {
         return false;
     }
@@ -482,6 +458,120 @@ function isAllowedRedirectUri(req, value) {
 function getTokenLifetime(value) {
     const lifetime = Number(value);
     return Number.isFinite(lifetime) && lifetime > 0 ? Math.max(1, Math.floor(lifetime)) : 3600;
+}
+
+function createStatusError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+}
+
+function delay(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function releaseRefreshLock(lockKey, lockValue) {
+    const releaseIfOwner = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        end
+        return 0
+    `;
+    await redisClient.eval(releaseIfOwner, {
+        keys: [lockKey],
+        arguments: [lockValue]
+    });
+}
+
+async function refreshSessionAccessToken(sessionId, accessTokenKey) {
+    const refreshTokenKey = `${sessionId}:refresh_token`;
+    const refreshToken = await redisClient.get(refreshTokenKey);
+    if (!refreshToken) {
+        throw createStatusError(401, 'No valid tokens available. Please log in again.');
+    }
+
+    const refreshBody = new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: AUTH0_CLIENT_ID,
+        client_secret: AUTH0_CLIENT_SECRET,
+        refresh_token: refreshToken
+    }).toString();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TOKEN_REFRESH_REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(tokenUrl, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: refreshBody
+        });
+        const refreshData = await response.json();
+        if (!response.ok || !refreshData.access_token) {
+            throw createStatusError(401, 'Unable to refresh expired token. Please log in again.');
+        }
+
+        const expiresIn = getTokenLifetime(refreshData.expires_in);
+        const transaction = redisClient.multi();
+        transaction.setEx(accessTokenKey, expiresIn, refreshData.access_token);
+        if (refreshData.refresh_token) {
+            transaction.setEx(refreshTokenKey, expiresIn * 24, refreshData.refresh_token);
+        }
+        await transaction.exec();
+
+        return { accessToken: refreshData.access_token, expiresIn, refreshed: true };
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw createStatusError(503, 'Token refresh timed out. Please try again.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function getSessionAccessToken(sessionId) {
+    const accessTokenKey = `${sessionId}:access_token`;
+    const lockKey = `${sessionId}:refresh_lock`;
+    const deadline = Date.now() + TOKEN_REFRESH_WAIT_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+        const [accessToken, accessTokenTtl] = await Promise.all([
+            redisClient.get(accessTokenKey),
+            redisClient.ttl(accessTokenKey)
+        ]);
+        if (accessToken && accessTokenTtl > 60) {
+            return { accessToken, expiresIn: accessTokenTtl, refreshed: false };
+        }
+
+        const lockValue = randomUUID();
+        const acquired = await redisClient.set(lockKey, lockValue, {
+            NX: true,
+            PX: TOKEN_REFRESH_LOCK_TTL_MS
+        });
+        if (acquired) {
+            try {
+                const [currentToken, currentTokenTtl] = await Promise.all([
+                    redisClient.get(accessTokenKey),
+                    redisClient.ttl(accessTokenKey)
+                ]);
+                if (currentToken && currentTokenTtl > 60) {
+                    return { accessToken: currentToken, expiresIn: currentTokenTtl, refreshed: false };
+                }
+                return await refreshSessionAccessToken(sessionId, accessTokenKey);
+            } finally {
+                try {
+                    await releaseRefreshLock(lockKey, lockValue);
+                } catch (error) {
+                    console.error('Failed to release token refresh lock:', error);
+                }
+            }
+        }
+
+        await delay(TOKEN_REFRESH_POLL_MS);
+    }
+
+    throw createStatusError(503, 'Token refresh is already in progress. Please try again.');
 }
 
 function getDownloadFilename(contentDisposition) {

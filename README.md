@@ -44,10 +44,11 @@ cp .env.example .env
 # SESSION_SECRET=your_session_secret_here # openssl rand -hex 64
 # REDIS_URL=redis://localhost:6379
 # API_DOMAIN=api.monotype.com
+# TRUST_PROXY=false
 # ALLOWED_REDIRECT_ORIGINS=http://localhost:8081
 ```
 
-`ALLOWED_REDIRECT_ORIGINS` accepts a comma-separated list of application origins. When omitted, callbacks must match the current request host; set it explicitly to the public application origin in deployed environments.
+`ALLOWED_REDIRECT_ORIGINS` accepts a comma-separated list of application origins. When omitted, callbacks must match the current request origin, including its protocol. Set it explicitly to the public application origin in deployed environments. If HTTPS is terminated by a trusted reverse proxy, set `TRUST_PROXY=true` so Express uses the forwarded HTTPS protocol during this comparison.
 
 4. Start Redis server:
 ```bash

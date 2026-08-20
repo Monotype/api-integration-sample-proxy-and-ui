@@ -4,6 +4,8 @@ let collectionTrees = { personal: [], shared: [] };
 let libraryTreesVisible = false;
 let browseFontsVisible = false;
 let authStep = 'initial'; // 'initial', 'authenticating', 'authenticated', 'loading', 'ready'
+let searchRequestGeneration = 0;
+const activeSearchControllers = new Set();
 
 // DOM Elements
 const loginScreen = document.getElementById('login-screen');
@@ -61,6 +63,35 @@ function setDownloadButtonContent(button, icon, label) {
         createTextElement('span', 'icon', icon),
         document.createTextNode(` ${label}`)
     );
+}
+
+function cancelPendingSearchRequests() {
+    searchRequestGeneration += 1;
+    activeSearchControllers.forEach(controller => controller.abort());
+    activeSearchControllers.clear();
+}
+
+function beginSearchRequest() {
+    cancelPendingSearchRequests();
+    const controller = new AbortController();
+    activeSearchControllers.add(controller);
+    return { controller, generation: searchRequestGeneration };
+}
+
+function isCurrentSearchRequest(generation) {
+    return generation === searchRequestGeneration;
+}
+
+function clearSearchState() {
+    cancelPendingSearchRequests();
+    document.getElementById('search-results-list')?.replaceChildren();
+    document.getElementById('font-search-form')?.reset();
+    document.getElementById('contextual-search-form')?.reset();
+    const progress = document.getElementById('contextual-search-progress');
+    if (progress) progress.style.display = 'none';
+    document.getElementById('contextual-search-activity')?.replaceChildren();
+    currentPage = 1;
+    totalPages = 1;
 }
 
 // Show status message
@@ -792,6 +823,7 @@ function setBrowseFontsVisible(visible) {
 
 // Handle logout
 async function logout() {
+    clearSearchState();
     try {
         await fetch('/api/logout', { method: 'POST' });
     } catch (error) {
@@ -970,6 +1002,7 @@ function resetContextualSearchProgress() {
 
 async function renderContextualSearchResults() {
     const query = document.getElementById('query').value.trim();
+    const { controller, generation } = beginSearchRequest();
     try {
         resetContextualSearchProgress();
         const payload = {
@@ -977,6 +1010,7 @@ async function renderContextualSearchResults() {
         };
         const response = await fetch('/api/proxy/v1/fontgpt/recommendations', {
             method: 'POST',
+            signal: controller.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -1001,6 +1035,7 @@ async function renderContextualSearchResults() {
             buffer = parts.pop(); // keep the last partial chunk
 
             for (const part of parts) {
+                if (!isCurrentSearchRequest(generation)) return;
                 if (part.startsWith('data:')) {
                     const data = part.slice(5).trim();
 
@@ -1016,7 +1051,8 @@ async function renderContextualSearchResults() {
                             const recommendations = obj.results?.recommendations || [];
                             const results = { pageNumber: 1, pageSize: recommendations.length, itemCount: recommendations.length, total: recommendations.length, fonts: recommendations };
                             console.log('Stream complete signal received', results);
-                            await renderSearchResults(1, results);
+                            await renderSearchResults(1, results, generation);
+                            if (!isCurrentSearchRequest(generation)) return;
                             document.getElementById('contextual-search-progress').style.display = 'none';
                         }
                     } catch (error) {
@@ -1027,9 +1063,12 @@ async function renderContextualSearchResults() {
         }
     }
     catch (error) {
+        if (error.name === 'AbortError') return;
         console.error('Error performing contextual search:', error);
         document.getElementById('contextual-search-status').textContent = error.message;
         appendContextualSearchActivity(`Error: ${error.message}`);
+    } finally {
+        activeSearchControllers.delete(controller);
     }
 }
 async function getSearchResults(pageNum) {
@@ -1053,9 +1092,11 @@ async function getSearchResults(pageNum) {
     if (name) {
         payload.searchSettings = { partial: ["name"] };
     }
+    const { controller, generation } = beginSearchRequest();
     try {
         const response = await fetch('/api/proxy/v1/fonts/search', {
             method: 'POST',
+            signal: controller.signal,
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json'
@@ -1063,15 +1104,20 @@ async function getSearchResults(pageNum) {
             body: JSON.stringify(payload)
         });
         const result = await response.json();
-        await renderSearchResults(pageNum, result);
+        if (!isCurrentSearchRequest(generation)) return;
+        await renderSearchResults(pageNum, result, generation);
     }
     catch (error) {
+        if (error.name === 'AbortError') return;
         console.error('Error fetching search results:', error);
+    } finally {
+        activeSearchControllers.delete(controller);
     }
 }
 // Helper to render search results for a given page
 // TODO: does this need to be async?
-async function renderSearchResults(pageNum, result) {
+async function renderSearchResults(pageNum, result, generation = searchRequestGeneration) {
+    if (!isCurrentSearchRequest(generation)) return;
     console.log("Rendering search results:", result);
     try {
         // Display search results as a folder in the collections section
