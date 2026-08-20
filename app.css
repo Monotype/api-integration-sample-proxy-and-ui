@@ -390,11 +390,46 @@ body {
 }
 
 .folders-list {
+    overflow: visible;
+}
+
+.collection-tree {
     max-height: 300px;
     overflow-y: auto;
     background: #34495e;
     border-radius: 4px;
     margin: 8px 0;
+}
+
+.collection-tree + .collection-tree {
+    margin-top: 12px;
+}
+
+.collection-tree-heading {
+    padding: 10px 16px 6px;
+    display: flex;
+    justify-content: space-between;
+    color: #ecf0f1;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #34495e;
+}
+
+.collection-tree-empty {
+    padding: 8px 20px 12px 40px;
+    color: #95a5a6;
+    font-size: 12px;
+}
+
+.folder-item.loading,
+.sub-folder-item.loading {
+    opacity: 0.65;
+    pointer-events: none;
 }
 
 .folder-item {
@@ -432,13 +467,11 @@ body {
 }
 
 .sub-folders {
-    overflow: hidden;
-    transition: max-height 0.3s ease-out;
-    max-height: 0;
+    display: none;
 }
 
 .sub-folders.expanded {
-    max-height: 500px;
+    display: block;
 }
 
 .sub-folder-item {
@@ -526,8 +559,7 @@ body {
 }
 
 .sub-folders.has-fonts.expanded {
-    max-height: 400px;
-    overflow-y: auto;
+    overflow: visible;
 }
 
 .loading {
@@ -697,10 +729,7 @@ body {
         max-height: 40vh;
     }
 
-    .folders-list {
+    .collection-tree {
         max-height: 150px;
-        background: #34495e;
-        border-radius: 4px;
-        margin: 8px 0;
     }
 }

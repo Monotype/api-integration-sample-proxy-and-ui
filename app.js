@@ -1,6 +1,7 @@
 const AUTH0_REDIRECT_URI = window.location.origin + window.location.pathname;
 let isAuthenticated = false;
 let collections = [];
+let collectionTrees = { personal: [], shared: [] };
 let authStep = 'initial'; // 'initial', 'authenticating', 'authenticated', 'loading', 'ready'
 
 // DOM Elements
@@ -130,55 +131,102 @@ async function exchangeCodeForTokens(code) {
         updateLoginUI();
         showStatus(`Authentication failed: ${error.message}`, 'error');
     }
-}        // Load collections from API
-async function loadCollections() {
-    try {
-        foldersLoading.classList.remove('hidden');
-        foldersError.classList.add('hidden');
-        foldersList.classList.add('hidden');
+}
 
-        console.log('Making request to /api/proxy/v1/fontslibrary/collections');
-        const response = await fetch('/api/proxy/v1/fontslibrary/collections', {
+function parseCollectionPage(result) {
+    if (Array.isArray(result)) return result;
+    if (Array.isArray(result.data)) return result.data;
+    if (Array.isArray(result.items)) return result.items;
+    if (Array.isArray(result.assets)) return result.assets;
+    throw new Error('Unexpected collections response structure.');
+}
+
+async function fetchCollectionPages(accessType, parentAsset = null) {
+    const pageSize = parentAsset ? 25 : 100;
+    const allItems = [];
+    let pageNumber = 1;
+    let hasMorePages = true;
+
+    while (hasMorePages) {
+        const query = new URLSearchParams({
+            pageNumber: String(pageNumber),
+            pageSize: String(pageSize),
+            accessType
+        });
+
+        if (parentAsset) {
+            query.set('assetType', parentAsset.assetType);
+            query.set('assetId', parentAsset.id || parentAsset.assetId);
+        } else {
+            query.set('sortBy', 'name');
+            query.set('sortOrder', 'asc');
+        }
+
+        const collectionsUrl = `/api/proxy/v1/fontslibrary/collections-lite?${query}`;
+        console.log('Making request to', collectionsUrl);
+
+        const response = await fetch(collectionsUrl, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json'
             }
         });
-
-        console.log('Response status:', response.status);
-        console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-
         const result = await response.json();
-        console.log('API Response:', result);
+
+        console.log(`Collections page ${pageNumber} status:`, response.status);
+        console.log(`Collections page ${pageNumber} response:`, result);
 
         if (response.status === 429) {
             throw new Error('Rate limit exceeded. Please wait a moment and try again.');
-        } else if (response.ok) {
-            // The API returns a direct array of collections
-            if (Array.isArray(result)) {
-                collections = result;
-            } else if (result.data && Array.isArray(result.data)) {
-                collections = result.data;
-            } else {
-                console.warn('Unexpected response structure:', result);
-                collections = [];
-            }
-
-            console.log('Parsed collections:', collections);
-
-            renderCollections();
-
-            // Successfully loaded - show the app
-            authStep = 'ready';
-            showApp();
-            showStatus('Successfully connected to your font library!', 'success');
-            setTimeout(hideStatus, 3000);
-        } else if (result.error === "Not authenticated") {
-            throw new Error('Session expired. Please log in again.');
-        } else {
-            throw new Error(result.message || `HTTP ${response.status}: Failed to load collections`);
         }
+        if (!response.ok) {
+            const errorTitle = result.error?.title || result.error;
+            if (errorTitle === 'Not authenticated' || errorTitle === 'AUTHENTICATION_FAILED') {
+                throw new Error('Session expired. Please log in again.');
+            }
+            throw new Error(result.message || result.error?.detail || `HTTP ${response.status}: Failed to load collections`);
+        }
+
+        const pageItems = parseCollectionPage(result).map(item => ({
+            ...item,
+            accessType,
+            _childrenLoaded: false
+        }));
+        allItems.push(...pageItems);
+
+        const totalPages = result.totalPages
+            ?? result.pagination?.totalPages
+            ?? result.meta?.totalPages;
+        hasMorePages = Number.isInteger(totalPages)
+            ? pageNumber < totalPages
+            : pageItems.length === pageSize;
+        pageNumber += 1;
+    }
+
+    return allItems;
+}
+
+// Load the personal and shared collection trees from the API.
+async function loadCollections() {
+    try {
+        foldersLoading.classList.remove('hidden');
+        foldersError.classList.add('hidden');
+        foldersList.classList.add('hidden');
+
+        collectionTrees = {
+            personal: await fetchCollectionPages('personal'),
+            shared: await fetchCollectionPages('shared')
+        };
+        collections = [...collectionTrees.personal, ...collectionTrees.shared];
+
+        console.log('Parsed collection trees:', collectionTrees);
+        renderCollections();
+
+        authStep = 'ready';
+        showApp();
+        showStatus('Successfully connected to your font library!', 'success');
+        setTimeout(hideStatus, 3000);
     } catch (error) {
         console.error('Error loading collections:', error);
         authStep = 'error';
@@ -214,17 +262,28 @@ function renderCollections() {
 
     foldersList.innerHTML = '';
 
-    if (!collections || collections.length === 0) {
-        // Show message when no collections are found
-        const noCollectionsItem = document.createElement('div');
-        noCollectionsItem.className = 'loading';
-        noCollectionsItem.textContent = 'No collections found';
-        foldersList.appendChild(noCollectionsItem);
-        return;
-    }
+    ['personal', 'shared'].forEach(accessType => {
+        const treeItems = collectionTrees[accessType] || [];
+        const tree = document.createElement('section');
+        tree.className = 'collection-tree';
 
-    collections.forEach((collection, index) => {
-        renderCollectionItem(collection, index, foldersList, false);
+        const heading = document.createElement('div');
+        heading.className = 'collection-tree-heading';
+        heading.innerHTML = `<span>${accessType === 'personal' ? 'Personal' : 'Shared'}</span><span>${treeItems.length}</span>`;
+        tree.appendChild(heading);
+
+        if (treeItems.length === 0) {
+            const emptyItem = document.createElement('div');
+            emptyItem.className = 'collection-tree-empty';
+            emptyItem.textContent = `No ${accessType} collections found`;
+            tree.appendChild(emptyItem);
+        } else {
+            treeItems.forEach((collection, index) => {
+                renderCollectionItem(collection, index, tree, false);
+            });
+        }
+
+        foldersList.appendChild(tree);
     });
 }
 
@@ -259,8 +318,8 @@ function renderFontItem(font, index, container, parentFontSet) {
         e.preventDefault();
         e.stopPropagation();
 
-        // Remove selection from other fonts
-        container.querySelectorAll('.font-item').forEach(item => {
+        // Only one font may be selected anywhere in the sidebar.
+        foldersList.querySelectorAll('.font-item').forEach(item => {
             item.classList.remove('selected');
         });
 
@@ -282,52 +341,26 @@ function renderFontItem(font, index, container, parentFontSet) {
     container.appendChild(fontItem);
 }
 
-function renderCollectionItem(collection, index, parentElement, isSubItem = false) {
-    const collectionId = collection.id;
-    const collectionName = collection.name;
-    const assetType = collection.assetType;
-
-    // Count fonts based on asset type and children structure
-    let fontCount = 0;
-    let hasSubItems = false;
-
-    if (collection.children && collection.children.length > 0) {
-        if (assetType === 'Folder') {
-            // For folders, count fonts from all child types (FontSets, WebProjects, and direct Variations)
-            fontCount = collection.children.reduce((total, child) => {
-                if (child.assetType === 'FontSet' && child.children) {
-                    // Count fonts in FontSets
-                    return total + child.children.filter(c => c.assetType === 'Variation').length;
-                } else if (child.assetType === 'WebProject' && child.children) {
-                    // Count fonts in WebProjects
-                    return total + child.children.filter(c => c.assetType === 'Variation').length;
-                } else if (child.assetType === 'Variation') {
-                    // Count direct font variations
-                    return total + 1;
-                }
-                return total;
-            }, 0);
-            // Folders have sub-items if they contain FontSets, WebProjects, or direct fonts
-            hasSubItems = collection.children.some(child =>
-                child.assetType === 'FontSet' ||
-                child.assetType === 'WebProject' ||
-                child.assetType === 'Variation'
-            );
-        } else if (assetType === 'FontSet' || assetType === 'WebProject') {
-            // For FontSets and WebProjects, count variation children directly (both can only contain fonts)
-            fontCount = collection.children.filter(child => child.assetType === 'Variation').length;
-            // FontSets and WebProjects have sub-items (fonts) if they have variations
-            hasSubItems = fontCount > 0;
-        } else {
-            // For other types, just count children
-            fontCount = collection.children.length;
-        }
+function getDisplayedChildCount(collection) {
+    if (!collection._childrenLoaded) {
+        return collection.itemCount ?? null;
     }
+    return collection.children?.length ?? 0;
+}
+
+function renderCollectionItem(collection, index, parentElement, isSubItem = false) {
+    const collectionId = collection.id || collection.assetId;
+    const collectionName = collection.name || collection.displayName || `Collection ${index + 1}`;
+    const assetType = collection.assetType;
+    const expandableTypes = ['Folder', 'FontSet', 'WebProject', 'DigitalAd'];
+    const hasSubItems = expandableTypes.includes(assetType) && collection.itemCount !== 0;
+    const childCount = getDisplayedChildCount(collection);
 
     // Choose appropriate icon based on asset type
     let icon = '📁';
     if (assetType === 'FontSet') icon = '🔤';
     else if (assetType === 'WebProject') icon = '🌐';
+    else if (assetType === 'DigitalAd') icon = '📣';
 
     // Create the main item container
     const itemContainer = document.createElement('div');
@@ -335,7 +368,7 @@ function renderCollectionItem(collection, index, parentElement, isSubItem = fals
     // Create the folder item
     const folderItem = document.createElement('div');
     folderItem.className = isSubItem ? 'sub-folder-item' : 'folder-item';
-    if (hasSubItems && !isSubItem) {
+    if (hasSubItems) {
         folderItem.classList.add('has-children');
     }
 
@@ -346,16 +379,15 @@ function renderCollectionItem(collection, index, parentElement, isSubItem = fals
 
     folderItem.innerHTML = `
         <span>${expandIcon}${icon} ${collectionName}</span>
-        <span class="${countClass}">${fontCount}</span>
+        ${childCount === null ? '' : `<span class="${countClass}">${childCount}</span>`}
     `;
 
     // Add click handler
-    folderItem.addEventListener('click', (e) => {
+    folderItem.addEventListener('click', async (e) => {
         e.stopPropagation();
 
         if (hasSubItems) {
-            // Toggle expansion for items with children (folders or fontsets)
-            toggleSubFolders(itemContainer, collection);
+            await toggleSubFolders(itemContainer, collection);
         }
 
         // Show collection details
@@ -363,7 +395,7 @@ function renderCollectionItem(collection, index, parentElement, isSubItem = fals
             id: collectionId,
             name: collectionName,
             assetType: assetType,
-            fontCount: fontCount,
+            fontCount: getDisplayedChildCount(collection),
             children: collection.children,
             ...collection
         });
@@ -371,42 +403,44 @@ function renderCollectionItem(collection, index, parentElement, isSubItem = fals
 
     itemContainer.appendChild(folderItem);
 
-    // Create sub-folders container if this item has children
+    // Child assets are loaded on the first expansion.
     if (hasSubItems) {
         const subFoldersContainer = document.createElement('div');
         subFoldersContainer.className = 'sub-folders';
         subFoldersContainer.dataset.parentId = collectionId;
-
-        if (assetType === 'Folder') {
-            // For folders, render all child types (FontSets, WebProjects, and direct fonts)
-            collection.children.forEach((child, childIndex) => {
-                if (child.assetType === 'FontSet' || child.assetType === 'WebProject') {
-                    // Render FontSets and WebProjects as sub-items
-                    renderCollectionItem(child, childIndex, subFoldersContainer, true);
-                } else if (child.assetType === 'Variation') {
-                    // Render direct font variations
-                    subFoldersContainer.classList.add('has-fonts');
-                    renderFontItem(child, childIndex, subFoldersContainer, collection);
-                }
-            });
-        } else if (assetType === 'FontSet' || assetType === 'WebProject') {
-            // For FontSets and WebProjects, render individual font variations only
-            subFoldersContainer.classList.add('has-fonts');
-            collection.children.forEach((font, fontIndex) => {
-                if (font.assetType === 'Variation') {
-                    renderFontItem(font, fontIndex, subFoldersContainer, collection);
-                }
-            });
+        if (collection._childrenLoaded) {
+            renderCollectionChildren(collection, subFoldersContainer);
         }
-
         itemContainer.appendChild(subFoldersContainer);
     }
 
     parentElement.appendChild(itemContainer);
 }
 
-// Toggle sub-folders visibility
-function toggleSubFolders(container, collection) {
+function renderCollectionChildren(collection, container) {
+    container.innerHTML = '';
+    const children = collection.children || [];
+
+    if (children.length === 0) {
+        const emptyItem = document.createElement('div');
+        emptyItem.className = 'collection-tree-empty';
+        emptyItem.textContent = 'No items found';
+        container.appendChild(emptyItem);
+        return;
+    }
+
+    children.forEach((child, childIndex) => {
+        if (['Folder', 'FontSet', 'WebProject', 'DigitalAd'].includes(child.assetType)) {
+            renderCollectionItem(child, childIndex, container, true);
+        } else if (child.assetType === 'Variation' || child.assetType === 'Font') {
+            container.classList.add('has-fonts');
+            renderFontItem(child, childIndex, container, collection);
+        }
+    });
+}
+
+// Load child assets on demand, then toggle their visibility.
+async function toggleSubFolders(container, collection) {
     const subFoldersContainer = container.querySelector('.sub-folders');
     const expandIcon = container.querySelector('.folder-expand-icon');
 
@@ -417,6 +451,31 @@ function toggleSubFolders(container, collection) {
             subFoldersContainer.classList.remove('expanded');
             expandIcon.classList.remove('expanded');
         } else {
+            if (!collection._childrenLoaded) {
+                const folderItem = container.querySelector('.folder-item, .sub-folder-item');
+                folderItem?.classList.add('loading');
+                try {
+                    collection.children = await fetchCollectionPages(collection.accessType, collection);
+                    collection._childrenLoaded = true;
+                    renderCollectionChildren(collection, subFoldersContainer);
+
+                    let count = folderItem?.querySelector('.folder-count, .sub-folder-count');
+                    if (!count && folderItem) {
+                        count = document.createElement('span');
+                        count.className = folderItem.classList.contains('sub-folder-item')
+                            ? 'sub-folder-count'
+                            : 'folder-count';
+                        folderItem.appendChild(count);
+                    }
+                    if (count) count.textContent = String(collection.children.length);
+                } catch (error) {
+                    console.error(`Failed to load ${collection.name} contents:`, error);
+                    showStatus(`Failed to load ${collection.name} contents: ${error.message}`, 'error');
+                    return;
+                } finally {
+                    folderItem?.classList.remove('loading');
+                }
+            }
             subFoldersContainer.classList.add('expanded');
             expandIcon.classList.add('expanded');
         }
@@ -735,6 +794,7 @@ async function logout() {
     folderView.classList.add('hidden');
     foldersList.innerHTML = '';
     collections = [];
+    collectionTrees = { personal: [], shared: [] };
 }
 
 // Navigation handling
