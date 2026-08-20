@@ -832,7 +832,16 @@ document.addEventListener('click', (e) => {
     if (navItem) {
         const view = navItem.dataset.view;
 
-        if (navItem.classList.contains('active')) return;
+        if (navItem.classList.contains('active')) {
+            if (view === 'library') {
+                setLibraryTreesVisible(false);
+                navItem.classList.remove('active');
+            } else if (view === 'browse') {
+                setBrowseFontsVisible(false);
+                navItem.classList.remove('active');
+            }
+            return;
+        }
 
         if (view === 'home') {
             setLibraryTreesVisible(false);
