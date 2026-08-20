@@ -1,6 +1,5 @@
 const AUTH0_REDIRECT_URI = window.location.origin + window.location.pathname;
 let isAuthenticated = false;
-let collections = [];
 let collectionTrees = { personal: [], shared: [] };
 let libraryTreesVisible = false;
 let browseFontsVisible = false;
@@ -26,6 +25,43 @@ const fontView = document.getElementById('font-view');
 const fontTitle = document.getElementById('font-title');
 const fontLoading = document.getElementById('font-loading');
 const fontDetails = document.getElementById('font-details');
+
+function createTextElement(tagName, className, text) {
+    const element = document.createElement(tagName);
+    if (className) element.className = className;
+    element.textContent = String(text ?? '');
+    return element;
+}
+
+function appendDetailCard(container, label, value, extraClass = '') {
+    const card = document.createElement('div');
+    card.className = `detail-card${extraClass ? ` ${extraClass}` : ''}`;
+    card.appendChild(createTextElement('div', 'detail-label', label));
+    card.appendChild(createTextElement('div', 'detail-value', value));
+    container.appendChild(card);
+    return card;
+}
+
+function appendFontMetadata(label, value, { fullWidth = false, valueClass = '' } = {}) {
+    const metadata = document.createElement('div');
+    metadata.className = `font-metadata${fullWidth ? ' full-width' : ''}`;
+    metadata.appendChild(createTextElement('div', 'detail-label', label));
+    metadata.appendChild(createTextElement('div', `detail-value${valueClass ? ` ${valueClass}` : ''}`, value));
+    fontDetails.appendChild(metadata);
+    return metadata;
+}
+
+function showFontError(message) {
+    fontDetails.replaceChildren();
+    appendDetailCard(fontDetails, 'Error', `Failed to load font details: ${message}`, 'detail-card-error');
+}
+
+function setDownloadButtonContent(button, icon, label) {
+    button.replaceChildren(
+        createTextElement('span', 'icon', icon),
+        document.createTextNode(` ${label}`)
+    );
+}
 
 // Show status message
 function showStatus(message, type = 'info') {
@@ -220,8 +256,6 @@ async function loadCollections() {
             personal: await fetchCollectionPages('personal'),
             shared: await fetchCollectionPages('shared')
         };
-        collections = [...collectionTrees.personal, ...collectionTrees.shared];
-
         console.log('Parsed collection trees:', collectionTrees);
         renderCollections();
 
@@ -262,7 +296,7 @@ function renderCollections() {
     foldersError.classList.add('hidden');
     foldersList.classList.remove('hidden');
 
-    foldersList.innerHTML = '';
+    foldersList.replaceChildren();
 
     ['personal', 'shared'].forEach(accessType => {
         const treeItems = collectionTrees[accessType] || [];
@@ -272,7 +306,8 @@ function renderCollections() {
 
         const heading = document.createElement('div');
         heading.className = 'collection-tree-heading';
-        heading.innerHTML = `<span>${accessType === 'personal' ? 'Personal' : 'Shared'}</span><span>${treeItems.length}</span>`;
+        heading.appendChild(createTextElement('span', '', accessType === 'personal' ? 'Personal' : 'Shared'));
+        heading.appendChild(createTextElement('span', '', treeItems.length));
         tree.appendChild(heading);
 
         if (treeItems.length === 0) {
@@ -306,11 +341,11 @@ function renderFontItem(font, index, container, parentFontSet) {
 
     const fontIcon = document.createElement('span');
     fontIcon.className = 'icon';
-    fontIcon.innerHTML = '📝'; // Font icon
+    fontIcon.textContent = '📝'; // Font icon
 
     const fontName = document.createElement('span');
     fontName.className = 'name';
-    fontName.innerHTML = font.name || font.displayName || `Font ${index + 1}`; // Changed from textContent to innerHTML
+    fontName.textContent = font.name || font.displayName || `Font ${index + 1}`;
 
     fontLink.appendChild(fontIcon);
     fontLink.appendChild(fontName);
@@ -377,31 +412,28 @@ function renderCollectionItem(collection, index, parentElement, isSubItem = fals
 
     folderItem.dataset.collectionId = collectionId;
 
-    const expandIcon = hasSubItems ? '<span class="folder-expand-icon">▶</span>' : '';
     const countClass = isSubItem ? 'sub-folder-count' : 'folder-count';
 
-    folderItem.innerHTML = `
-        <span>${expandIcon}${icon} ${collectionName}</span>
-        ${childCount === null ? '' : `<span class="${countClass}">${childCount}</span>`}
-    `;
+    const itemLabel = document.createElement('span');
+    if (hasSubItems) {
+        itemLabel.appendChild(createTextElement('span', 'folder-expand-icon', '▶'));
+    }
+    itemLabel.appendChild(document.createTextNode(`${icon} ${collectionName}`));
+    folderItem.appendChild(itemLabel);
+    if (childCount !== null) {
+        folderItem.appendChild(createTextElement('span', countClass, childCount));
+    }
 
     // Add click handler
     folderItem.addEventListener('click', async (e) => {
         e.stopPropagation();
 
         if (hasSubItems) {
-            await toggleSubFolders(itemContainer, collection);
+            const toggled = await toggleSubFolders(itemContainer, collection);
+            if (!toggled) return;
         }
 
-        // Show collection details
-        showCollection({
-            id: collectionId,
-            name: collectionName,
-            assetType: assetType,
-            fontCount: getDisplayedChildCount(collection),
-            children: collection.children,
-            ...collection
-        });
+        showCollection(collection);
     });
 
     itemContainer.appendChild(folderItem);
@@ -421,7 +453,7 @@ function renderCollectionItem(collection, index, parentElement, isSubItem = fals
 }
 
 function renderCollectionChildren(collection, container) {
-    container.innerHTML = '';
+    container.replaceChildren();
     const children = collection.children || [];
 
     if (children.length === 0) {
@@ -474,7 +506,7 @@ async function toggleSubFolders(container, collection) {
                 } catch (error) {
                     console.error(`Failed to load ${collection.name} contents:`, error);
                     showStatus(`Failed to load ${collection.name} contents: ${error.message}`, 'error');
-                    return;
+                    return false;
                 } finally {
                     folderItem?.classList.remove('loading');
                 }
@@ -482,17 +514,26 @@ async function toggleSubFolders(container, collection) {
             subFoldersContainer.classList.add('expanded');
             expandIcon.classList.add('expanded');
         }
+        return true;
     }
+    return false;
 }
 
 // Show collection details
 function showCollection(collection) {
-    pageTitle.innerHTML = `Collection: ${collection.name}`;
-    folderTitle.innerHTML = collection.name;
+    const collectionName = collection.name || collection.displayName || 'Unnamed collection';
+    const collectionId = collection.id || collection.assetId || 'Unknown';
+    const assetType = collection.assetType || 'Unknown';
+    const childCount = getDisplayedChildCount(collection);
+    const displayedChildCount = childCount === null ? 'Unknown' : childCount;
+
+    pageTitle.textContent = `Collection: ${collectionName}`;
+    folderTitle.textContent = collectionName;
 
     // Update active state for both folder-item and sub-folder-item
     document.querySelectorAll('.folder-item, .sub-folder-item').forEach(item => item.classList.remove('active'));
-    const activeItem = document.querySelector(`[data-collection-id="${collection.id}"]`);
+    const activeItem = Array.from(document.querySelectorAll('.folder-item, .sub-folder-item'))
+        .find(item => item.dataset.collectionId === String(collectionId));
     if (activeItem) {
         activeItem.classList.add('active');
     }
@@ -502,47 +543,37 @@ function showCollection(collection) {
     fontView.classList.add('hidden');
     folderView.classList.remove('hidden');
 
-    // Render collection details
-    folderDetails.innerHTML = `
-        <div class="detail-card">
-            <div class="detail-label">Collection ID</div>
-            <div class="detail-value">${collection.id}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Asset Type</div>
-            <div class="detail-value">${collection.assetType || 'Unknown'}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Font Count</div>
-            <div class="detail-value">${collection.fontCount || 0}</div>
-        </div>
-        <div class="detail-card">
-            <div class="detail-label">Children Count</div>
-            <div class="detail-value">${collection.children ? collection.children.length : 0}</div>
-        </div>
-    `;
+    folderDetails.replaceChildren();
+    appendDetailCard(folderDetails, 'Collection ID', collectionId);
+    appendDetailCard(folderDetails, 'Asset Type', assetType);
+    appendDetailCard(folderDetails, 'Child Count', displayedChildCount);
 
     // Generate description based on asset type and contents
     let description = '';
-    if (collection.assetType === 'Folder') {
+    if (assetType === 'Folder') {
         const fontSets = collection.children ? collection.children.filter(c => c.assetType === 'FontSet').length : 0;
-        description = `This folder contains ${fontSets} font set(s) with a total of ${collection.fontCount} font variations.`;
-    } else if (collection.assetType === 'FontSet') {
-        description = `This font set contains ${collection.fontCount} font variations.`;
-    } else if (collection.assetType === 'WebProject') {
+        description = childCount === null
+            ? 'Open this folder to load its contents.'
+            : `This folder contains ${displayedChildCount} immediate item(s), including ${fontSets} font set(s).`;
+    } else if (assetType === 'FontSet') {
+        description = childCount === null
+            ? 'Open this font set to load its contents.'
+            : `This font set contains ${displayedChildCount} immediate item(s).`;
+    } else if (assetType === 'WebProject') {
         description = `This is a web project collection.`;
     } else {
-        description = `Collection of type "${collection.assetType}".`;
+        description = `Collection of type "${assetType}".`;
     }
 
-    folderDescription.innerHTML = `<p class="folder-description-text">${description}</p>`;
+    folderDescription.replaceChildren(createTextElement('p', 'folder-description-text', description));
 }
 
 // Show font details
 async function showFontDetails(fontAssetId, fontName) {
     try {
-        pageTitle.innerHTML = `Font: ${fontName}`;
-        fontTitle.innerHTML = fontName;
+        const displayedFontName = fontName || 'Unknown font';
+        pageTitle.textContent = `Font: ${displayedFontName}`;
+        fontTitle.textContent = displayedFontName;
 
         // Hide other views and show font view
         welcomeView.classList.add('hidden');
@@ -555,7 +586,7 @@ async function showFontDetails(fontAssetId, fontName) {
 
         // Show loading state
         fontLoading.classList.remove('hidden');
-        fontDetails.innerHTML = '';
+        fontDetails.replaceChildren();
 
         console.log('Fetching font details for asset ID:', fontAssetId);
         const response = await fetch(`/api/proxy/v1/fonts/${fontAssetId}`, {
@@ -577,133 +608,73 @@ async function showFontDetails(fontAssetId, fontName) {
             const fontData = result.font || result.data || result;
             renderFontDetails(fontData);
         } else {
-            fontDetails.innerHTML = `
-                <div class="detail-card detail-card-error">
-                    <div class="detail-label">Error</div>
-                    <div class="detail-value">Failed to load font details: ${result.message || response.statusText}</div>
-                </div>
-            `;
+            showFontError(result.message || response.statusText);
         }
     } catch (error) {
         console.error('Error fetching font details:', error);
         fontLoading.classList.add('hidden');
-        fontDetails.innerHTML = `
-            <div class="detail-card detail-card-error">
-                <div class="detail-label">Error</div>
-                <div class="detail-value">Failed to load font details: ${error.message}</div>
-            </div>
-        `;
+        showFontError(error.message);
     }
 }
 
 // Render font details
 function renderFontDetails(fontData) {
-    const previewText = "The quick brown fox jumps over the lazy dog";
+    fontDetails.replaceChildren();
 
-    fontDetails.innerHTML = `
-        ${fontData.sample ? `
-        <div class="font-sample">
-            <div class="detail-label">Official Font Sample</div>
-            <img class="font-sample-image" alt="" />
-        </div>
-        ` : ''}
-        
-        <div class="font-download-section">
-            <button class="download-btn" type="button">
-                <span class="icon">⬇</span>
-                Download Font
-            </button>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Font Name</div>
-            <div class="detail-value">${fontData.friendlyName || fontData.name || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">PostScript Name</div>
-            <div class="detail-value">${fontData.psName || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Font ID</div>
-            <div class="detail-value">${fontData.fontId || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Font Family</div>
-            <div class="detail-value">${fontData.family || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Style</div>
-            <div class="detail-value">${fontData.style || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Weight (CSS)</div>
-            <div class="detail-value">${fontData.weightCSS || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Foundry</div>
-            <div class="detail-value">${fontData.foundry || 'Unknown'}</div>
-        </div>
-        
-        <div class="font-metadata">
-            <div class="detail-label">Format</div>
-            <div class="detail-value">${fontData.format || 'Unknown'}</div>
-        </div>
-        
-        ${fontData.description ? `
-        <div class="font-metadata full-width">
-            <div class="detail-label">Description</div>
-            <div class="detail-value">${fontData.description}</div>
-        </div>
-        ` : ''}
-        
-        ${fontData.classification && fontData.classification.length > 0 ? `
-        <div class="font-metadata full-width">
-            <div class="detail-label">Classification</div>
-            <div class="detail-value">
-                ${fontData.classification.map(cls => `<span class="classification-tag">${cls}</span>`).join('')}
-            </div>
-        </div>
-        ` : ''}
-        
-        ${fontData.tag && fontData.tag.length > 0 ? `
-        <div class="font-metadata full-width">
-            <div class="detail-label">Tags</div>
-            <div class="detail-value">
-                ${fontData.tag.map(tag => `<span class="tag-badge">${tag}</span>`).join('')}
-            </div>
-        </div>
-        ` : ''}
-        
-        ${fontData.publicTags && fontData.publicTags.length > 0 ? `
-        <div class="font-metadata full-width">
-            <div class="detail-label">Public Tags</div>
-            <div class="detail-value public-tags-container">
-                ${fontData.publicTags.map(tag => `<span class="public-tag">${tag}</span>`).join('')}
-            </div>
-        </div>
-        ` : ''}
-    `;
-
-    const sampleImage = fontDetails.querySelector('.font-sample-image');
-    if (sampleImage) {
+    if (fontData.sample) {
+        const sample = document.createElement('div');
+        sample.className = 'font-sample';
+        sample.appendChild(createTextElement('div', 'detail-label', 'Official Font Sample'));
+        const sampleImage = document.createElement('img');
+        sampleImage.className = 'font-sample-image';
         sampleImage.src = fontData.sample;
         sampleImage.alt = `Font sample for ${fontData.friendlyName || fontData.name || 'selected font'}`;
         sampleImage.addEventListener('error', () => {
-            sampleImage.closest('.font-sample')?.remove();
+            sample.remove();
         }, { once: true });
+        sample.appendChild(sampleImage);
+        fontDetails.appendChild(sample);
     }
 
-    const downloadButton = fontDetails.querySelector('.download-btn');
-    if (downloadButton) {
-        const fontId = fontData.fontId || fontData.id;
-        downloadButton.addEventListener('click', () => downloadFont(fontId));
+    const downloadSection = document.createElement('div');
+    downloadSection.className = 'font-download-section';
+    const downloadButton = document.createElement('button');
+    downloadButton.className = 'download-btn';
+    downloadButton.type = 'button';
+    downloadButton.appendChild(createTextElement('span', 'icon', '⬇'));
+    downloadButton.appendChild(document.createTextNode(' Download Font'));
+    const fontId = fontData.fontId || fontData.id;
+    downloadButton.addEventListener('click', () => downloadFont(fontId));
+    downloadSection.appendChild(downloadButton);
+    fontDetails.appendChild(downloadSection);
+
+    const metadataFields = [
+        ['Font Name', fontData.friendlyName || fontData.name || 'Unknown'],
+        ['PostScript Name', fontData.psName || 'Unknown'],
+        ['Font ID', fontData.fontId || fontData.id || 'Unknown'],
+        ['Font Family', fontData.family || 'Unknown'],
+        ['Style', fontData.style || 'Unknown'],
+        ['Weight (CSS)', fontData.weightCSS || 'Unknown'],
+        ['Foundry', fontData.foundry || 'Unknown'],
+        ['Format', fontData.format || 'Unknown']
+    ];
+    metadataFields.forEach(([label, value]) => appendFontMetadata(label, value));
+
+    if (fontData.description) {
+        appendFontMetadata('Description', fontData.description, { fullWidth: true });
     }
+
+    const tagGroups = [
+        ['Classification', fontData.classification, 'classification-tag', ''],
+        ['Tags', fontData.tag, 'tag-badge', ''],
+        ['Public Tags', fontData.publicTags, 'public-tag', 'public-tags-container']
+    ];
+    tagGroups.forEach(([label, values, tagClass, containerClass]) => {
+        if (!Array.isArray(values) || values.length === 0) return;
+        const metadata = appendFontMetadata(label, '', { fullWidth: true, valueClass: containerClass });
+        const valueContainer = metadata.querySelector('.detail-value');
+        values.forEach(value => valueContainer.appendChild(createTextElement('span', tagClass, value)));
+    });
 }
 
 // Download font function
@@ -715,10 +686,9 @@ async function downloadFont(fontId) {
 
     try {
         const downloadBtn = document.querySelector('.download-btn');
-        const originalText = downloadBtn.innerHTML;
 
         // Update button to show loading state
-        downloadBtn.innerHTML = '<span class="icon">⏳</span> Downloading...';
+        setDownloadButtonContent(downloadBtn, '⏳', 'Downloading...');
         downloadBtn.disabled = true;
         downloadBtn.style.background = '#95a5a6';
 
@@ -757,12 +727,12 @@ async function downloadFont(fontId) {
         window.URL.revokeObjectURL(url);
 
         // Reset button
-        downloadBtn.innerHTML = '<span class="icon">✓</span> Downloaded!';
+        setDownloadButtonContent(downloadBtn, '✓', 'Downloaded!');
         downloadBtn.style.background = '#27ae60';
 
         // Reset to original state after 2 seconds
         setTimeout(() => {
-            downloadBtn.innerHTML = originalText;
+            setDownloadButtonContent(downloadBtn, '⬇', 'Download Font');
             downloadBtn.disabled = false;
             downloadBtn.style.background = '#27ae60';
         }, 2000);
@@ -772,13 +742,13 @@ async function downloadFont(fontId) {
 
         // Reset button and show error
         const downloadBtn = document.querySelector('.download-btn');
-        downloadBtn.innerHTML = '<span class="icon">❌</span> Download Failed';
+        setDownloadButtonContent(downloadBtn, '❌', 'Download Failed');
         downloadBtn.style.background = '#e74c3c';
         downloadBtn.disabled = false;
 
         // Reset to original state after 3 seconds
         setTimeout(() => {
-            downloadBtn.innerHTML = '<span class="icon">⬇</span> Download Font';
+            setDownloadButtonContent(downloadBtn, '⬇', 'Download Font');
             downloadBtn.style.background = '#27ae60';
         }, 3000);
 
@@ -831,8 +801,7 @@ async function logout() {
     pageTitle.textContent = 'Font Library Dashboard';
     welcomeView.classList.remove('hidden');
     folderView.classList.add('hidden');
-    foldersList.innerHTML = '';
-    collections = [];
+    foldersList.replaceChildren();
     collectionTrees = { personal: [], shared: [] };
     setLibraryTreesVisible(false);
     setBrowseFontsVisible(false);
@@ -886,17 +855,12 @@ document.addEventListener('click', (e) => {
             folderView.classList.remove('hidden');
             fontView.classList.add('hidden');
             folderTitle.textContent = 'Discover Fonts';
-            folderDetails.innerHTML = `
-                <div class="detail-card">
-                    <div class="detail-label">Total Fonts</div>
-                    <div class="detail-value">${collections.reduce((sum, col) => sum + (col.fontCount || 0), 0)}</div>
-                </div>
-                <div class="detail-card">
-                    <div class="detail-label">Collections</div>
-                    <div class="detail-value">${collections.length}</div>
-                </div>
-            `;
-            folderDescription.innerHTML = '<p class="folder-description-text">Discover available fonts in your library.</p>';
+            folderDetails.replaceChildren();
+            appendDetailCard(folderDetails, 'Personal Top-Level Assets', collectionTrees.personal.length);
+            appendDetailCard(folderDetails, 'Shared Top-Level Assets', collectionTrees.shared.length);
+            folderDescription.replaceChildren(
+                createTextElement('p', 'folder-description-text', 'Discover available fonts in your library.')
+            );
         }
     }
 });
@@ -927,7 +891,6 @@ const fontSearchForm = document.getElementById('font-search-form');
 // Pagination state
 let currentPage = 1;
 const pageSize = 20;
-let totalFonts = 0;
 let totalPages = 1;
 
 function formatApiFieldName(name) {
@@ -1002,7 +965,7 @@ function resetContextualSearchProgress() {
     document.getElementById('contextual-search-progress-bar').style.width = '0%';
     document.getElementById('contextual-search-status').textContent = 'Waiting for API response…';
     document.getElementById('contextual-search-percent').textContent = '0%';
-    document.getElementById('contextual-search-activity').innerHTML = '';
+    document.getElementById('contextual-search-activity').replaceChildren();
 }
 
 async function renderContextualSearchResults() {
@@ -1041,7 +1004,6 @@ async function renderContextualSearchResults() {
                 if (part.startsWith('data:')) {
                     const data = part.slice(5).trim();
 
-                    // infoDiv.innerHTML += "<pre>" + JSON.stringify(JSON.parse(data), null, 4) + "</pre>";
                     if (data === '[DONE]') {
                         console.log('Stream complete');
                         appendContextualSearchActivity('[DONE]');
@@ -1124,13 +1086,16 @@ async function renderSearchResults(pageNum, result) {
         searchFolder.className = 'folder-item has-children';
         searchFolder.id = 'search-results-folder';
         // Use correct pagination info from API response
-        const currentApiPage = result.pageNumber || pageNum;
-        const apiPageSize = result.pageSize || pageSize;
-        const apiItemCount = result.itemCount || (result.fonts ? result.fonts.length : 0);
-        const apiTotal = result.total || apiItemCount;
-        totalFonts = apiTotal;
+        const currentApiPage = Number(result.pageNumber) || pageNum;
+        const apiPageSize = Number(result.pageSize) || pageSize;
+        const apiItemCount = Number(result.itemCount ?? result.fonts?.length ?? 0) || 0;
+        const apiTotal = Number(result.total ?? apiItemCount) || 0;
         totalPages = Math.max(1, Math.ceil(apiTotal / apiPageSize));
-        searchFolder.innerHTML = `<span><span class="folder-expand-icon expanded">▶</span>🔍 Search Results</span><span class="folder-count">${apiTotal}</span>`;
+        const searchFolderLabel = document.createElement('span');
+        searchFolderLabel.appendChild(createTextElement('span', 'folder-expand-icon expanded', '▶'));
+        searchFolderLabel.appendChild(document.createTextNode('🔍 Search Results'));
+        searchFolder.appendChild(searchFolderLabel);
+        searchFolder.appendChild(createTextElement('span', 'folder-count', apiTotal));
         searchResultsList.prepend(searchFolder);
         // Create container for font links
         const searchFontsContainer = document.createElement('div');
@@ -1154,10 +1119,10 @@ async function renderSearchResults(pageNum, result) {
                 fontLink.className = 'collection-link';
                 const fontIcon = document.createElement('span');
                 fontIcon.className = 'icon';
-                fontIcon.innerHTML = '📝';
+                fontIcon.textContent = '📝';
                 const fontName = document.createElement('span');
                 fontName.className = 'name';
-                fontName.innerHTML = font.name || font.friendlyName || `Font ${idx + 1}`; // Changed from textContent to innerHTML
+                fontName.textContent = font.name || font.friendlyName || `Font ${idx + 1}`;
                 fontLink.appendChild(fontIcon);
                 fontLink.appendChild(fontName);
                 fontItem.appendChild(fontLink);
@@ -1178,7 +1143,7 @@ async function renderSearchResults(pageNum, result) {
             // Show a message if no results
             const noResults = document.createElement('div');
             noResults.className = 'search-results-message';
-            noResults.innerHTML = 'No fonts found.';
+            noResults.textContent = 'No fonts found.';
             searchFontsContainer.appendChild(noResults);
         }
         // Pagination controls (always visible)
@@ -1189,23 +1154,23 @@ async function renderSearchResults(pageNum, result) {
         prevBtn.className = 'pagination-button';
         prevBtn.textContent = 'Previous';
         prevBtn.disabled = currentApiPage === 1;
-        prevBtn.onclick = () => {
+        prevBtn.addEventListener('click', () => {
             if (currentApiPage > 1) {
                 currentPage = currentApiPage - 1;
                 getSearchResults(currentPage);
             }
-        };
+        });
         // Next button
         const nextBtn = document.createElement('button');
         nextBtn.className = 'pagination-button';
         nextBtn.textContent = 'Next';
         nextBtn.disabled = currentApiPage === totalPages;
-        nextBtn.onclick = () => {
+        nextBtn.addEventListener('click', () => {
             if (currentApiPage < totalPages) {
                 currentPage = currentApiPage + 1;
                 getSearchResults(currentPage);
             }
-        };
+        });
         // Page info
         const pageInfo = document.createElement('span');
         pageInfo.className = 'pagination-info';
@@ -1249,6 +1214,18 @@ contextualSearchForm.addEventListener('submit', function (e) {
     renderContextualSearchResults();
 });
 
+function setSelectOptions(select, values, firstLabel = 'Any') {
+    select.replaceChildren();
+    const firstOption = createTextElement('option', '', firstLabel);
+    firstOption.value = '';
+    select.appendChild(firstOption);
+    values.forEach(value => {
+        const option = createTextElement('option', '', value);
+        option.value = String(value);
+        select.appendChild(option);
+    });
+}
+
 // Add this after DOMContentLoaded or at the end of your script
 async function populateFontFilters() {
     try {
@@ -1266,23 +1243,23 @@ async function populateFontFilters() {
         const searchBtn = document.getElementById('font-search-btn');
         const contextualSearchBtn = document.getElementById('contextual-search-btn');
         // Show loading state
-        classificationSelect.innerHTML = '<option>Loading...</option>';
-        tagsSelect.innerHTML = '<option>Loading...</option>';
-        languagesSelect.innerHTML = '<option>Loading...</option>';
+        setSelectOptions(classificationSelect, [], 'Loading...');
+        setSelectOptions(tagsSelect, [], 'Loading...');
+        setSelectOptions(languagesSelect, [], 'Loading...');
         searchBtn.disabled = true;
         contextualSearchBtn.disabled = true;
         let loadedCount = 0;
         // Populate dropdowns using correct keys from API response
         if (result.classification && Array.isArray(result.classification)) {
-            classificationSelect.innerHTML = '<option value="">Any</option>' + result.classification.map(c => `<option value="${c}">${c}</option>`).join('');
+            setSelectOptions(classificationSelect, result.classification);
             loadedCount++;
         }
         if (result.tags && Array.isArray(result.tags)) {
-            tagsSelect.innerHTML = '<option value="">Any</option>' + result.tags.map(t => `<option value="${t}">${t}</option>`).join('');
+            setSelectOptions(tagsSelect, result.tags);
             loadedCount++;
         }
         if (result.language && Array.isArray(result.language)) {
-            languagesSelect.innerHTML = '<option value="">Any</option>' + result.language.map(l => `<option value="${l}">${l}</option>`).join('');
+            setSelectOptions(languagesSelect, result.language);
             loadedCount++;
         }
         // Enable search button only if all dropdowns are loaded
