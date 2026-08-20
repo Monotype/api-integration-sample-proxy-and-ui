@@ -867,11 +867,11 @@ document.addEventListener('click', (e) => {
             folderView.classList.add('hidden');
             fontView.classList.add('hidden');
         } else if (view === 'browse') {
-            pageTitle.textContent = 'Browse Fonts';
+            pageTitle.textContent = 'Discover Fonts';
             welcomeView.classList.add('hidden');
             folderView.classList.remove('hidden');
             fontView.classList.add('hidden');
-            folderTitle.textContent = 'Browse All Fonts';
+            folderTitle.textContent = 'Discover Fonts';
             folderDetails.innerHTML = `
                 <div class="detail-card">
                     <div class="detail-label">Total Fonts</div>
@@ -882,7 +882,7 @@ document.addEventListener('click', (e) => {
                     <div class="detail-value">${collections.length}</div>
                 </div>
             `;
-            folderDescription.innerHTML = '<p class="folder-description-text">Browse through all available fonts in your library.</p>';
+            folderDescription.innerHTML = '<p class="folder-description-text">Discover available fonts in your library.</p>';
         }
     }
 });

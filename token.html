@@ -579,7 +579,7 @@
                     <button class="nav-item" id="browse-fonts-link" data-view="browse" aria-expanded="false"
                         aria-controls="font-search-form-container search-results-list">
                         <span class="nav-item-icon">🔍</span>
-                        <span>Browse Fonts</span>
+                        <span>Discover Fonts</span>
                     </button>
                     <div id="font-search-form-container" style="display:none;padding:16px 20px 0 20px;">
                         <form id="font-search-form">
@@ -1559,11 +1559,11 @@
                     folderView.classList.add('hidden');
                     fontView.classList.add('hidden');
                 } else if (view === 'browse') {
-                    pageTitle.textContent = 'Browse Fonts';
+                    pageTitle.textContent = 'Discover Fonts';
                     welcomeView.classList.add('hidden');
                     folderView.classList.remove('hidden');
                     fontView.classList.add('hidden');
-                    folderTitle.textContent = 'Browse All Fonts';
+                    folderTitle.textContent = 'Discover Fonts';
                     folderDetails.innerHTML = `
                         <div class="detail-card">
                             <div class="detail-label">Total Fonts</div>
@@ -1574,7 +1574,7 @@
                             <div class="detail-value">${collections.length}</div>
                         </div>
                     `;
-                    folderDescription.innerHTML = '<p style="margin-top: 20px; color: #7f8c8d; line-height: 1.6;">Browse through all available fonts in your library.</p>';
+                    folderDescription.innerHTML = '<p style="margin-top: 20px; color: #7f8c8d; line-height: 1.6;">Discover available fonts in your library.</p>';
                 }
             }
         });
