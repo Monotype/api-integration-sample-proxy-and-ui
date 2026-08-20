@@ -799,12 +799,13 @@ async function logout() {
 
 // Navigation handling
 document.addEventListener('click', (e) => {
-    if (e.target.matches('[data-view]')) {
-        const view = e.target.dataset.view;
+    const navItem = e.target.closest('.nav-item[data-view]');
+    if (navItem) {
+        const view = navItem.dataset.view;
 
         // Update active nav item
         document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-        e.target.classList.add('active');
+        navItem.classList.add('active');
 
         // Update active folder item
         document.querySelectorAll('.folder-item').forEach(item => item.classList.remove('active'));
@@ -813,10 +814,12 @@ document.addEventListener('click', (e) => {
             pageTitle.textContent = 'Font Library Dashboard';
             welcomeView.classList.remove('hidden');
             folderView.classList.add('hidden');
+            fontView.classList.add('hidden');
         } else if (view === 'browse') {
             pageTitle.textContent = 'Browse Fonts';
             welcomeView.classList.add('hidden');
             folderView.classList.remove('hidden');
+            fontView.classList.add('hidden');
             folderTitle.textContent = 'Browse All Fonts';
             folderDetails.innerHTML = `
                 <div class="detail-card">

@@ -528,6 +528,7 @@ body {
 
 .font-item .collection-link:hover {
     background-color: #f1f3f4;
+    color: #2c3e50;
 }
 
 .font-item.selected .collection-link {
