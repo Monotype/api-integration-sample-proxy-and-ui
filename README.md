@@ -44,7 +44,10 @@ cp .env.example .env
 # SESSION_SECRET=your_session_secret_here # openssl rand -hex 64
 # REDIS_URL=redis://localhost:6379
 # API_DOMAIN=api.monotype.com
+# ALLOWED_REDIRECT_ORIGINS=http://localhost:8081
 ```
+
+`ALLOWED_REDIRECT_ORIGINS` accepts a comma-separated list of application origins. When omitted, callbacks must match the current request host; set it explicitly to the public application origin in deployed environments.
 
 4. Start Redis server:
 ```bash
@@ -140,6 +143,9 @@ Font discovery uses `/v1/fonts/search` and `/v1/fonts/filterslookup`. The contex
 - Authorization Code flow with client secret authentication
 - Automatic token refresh with proper error handling
 - Session-based authentication state management
+- OAuth callback-origin validation
+- Content Security Policy and content-type hardening
+- Cryptographically random server-side token identifiers
 
 ## Development
 
@@ -159,7 +165,6 @@ Font discovery uses `/v1/fonts/search` and `/v1/fonts/filterslookup`. The contex
 - `express` - Web framework
 - `express-session` - Session middleware
 - `connect-redis` - Redis session store
-- `jsonwebtoken` - JWT token handling
 - `redis` - Redis client
 
 ### Common Issues

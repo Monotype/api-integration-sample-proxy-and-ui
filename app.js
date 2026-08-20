@@ -604,13 +604,12 @@ function renderFontDetails(fontData) {
         ${fontData.sample ? `
         <div class="font-sample">
             <div class="detail-label">Official Font Sample</div>
-            <img src="${fontData.sample}" alt="Font sample for ${fontData.friendlyName || fontData.name}" 
-                 onerror="this.parentElement.style.display='none';" />
+            <img class="font-sample-image" alt="" />
         </div>
         ` : ''}
         
         <div class="font-download-section">
-            <button class="download-btn" onclick="downloadFont('${fontData.fontId || fontData.id}')">
+            <button class="download-btn" type="button">
                 <span class="icon">⬇</span>
                 Download Font
             </button>
@@ -690,6 +689,21 @@ function renderFontDetails(fontData) {
         </div>
         ` : ''}
     `;
+
+    const sampleImage = fontDetails.querySelector('.font-sample-image');
+    if (sampleImage) {
+        sampleImage.src = fontData.sample;
+        sampleImage.alt = `Font sample for ${fontData.friendlyName || fontData.name || 'selected font'}`;
+        sampleImage.addEventListener('error', () => {
+            sampleImage.closest('.font-sample')?.remove();
+        }, { once: true });
+    }
+
+    const downloadButton = fontDetails.querySelector('.download-btn');
+    if (downloadButton) {
+        const fontId = fontData.fontId || fontData.id;
+        downloadButton.addEventListener('click', () => downloadFont(fontId));
+    }
 }
 
 // Download font function
