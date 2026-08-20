@@ -50,8 +50,16 @@
                         <form id="contextual-search-form">
                             <label for="query" class="form-label">Contextual Search</label>
                             <input id="query" name="query" type="text" class="form-input">
-                            <div id="contextual-search-progress" class="contextual-search-progress">
-                                <div id="contextual-search-progress-bar" class="contextual-search-progress-bar"></div>
+                            <div id="contextual-search-progress" class="contextual-search-progress" role="status"
+                                aria-live="polite">
+                                <div class="contextual-search-progress-header">
+                                    <span id="contextual-search-status">Waiting for API response…</span>
+                                    <span id="contextual-search-percent">0%</span>
+                                </div>
+                                <div class="contextual-search-progress-track">
+                                    <div id="contextual-search-progress-bar" class="contextual-search-progress-bar"></div>
+                                </div>
+                                <div id="contextual-search-activity" class="contextual-search-activity"></div>
                             </div>
                             <button id="contextual-search-btn" type="submit" class="search-button" disabled>
                                 Search

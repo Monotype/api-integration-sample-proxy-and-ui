@@ -916,9 +916,85 @@ const pageSize = 20;
 let totalFonts = 0;
 let totalPages = 1;
 
+function formatApiFieldName(name) {
+    return name
+        .replace(/([a-z])([A-Z])/g, '$1 $2')
+        .replace(/[_-]+/g, ' ')
+        .replace(/^./, character => character.toUpperCase());
+}
+
+function appendContextualSearchActivity(text) {
+    if (!text) return;
+    const activity = document.getElementById('contextual-search-activity');
+    const lastItem = activity.lastElementChild;
+    if (lastItem?.textContent === text) return;
+
+    const item = document.createElement('div');
+    item.className = 'contextual-search-activity-item';
+    item.textContent = text;
+    activity.appendChild(item);
+
+    while (activity.children.length > 4) {
+        activity.firstElementChild.remove();
+    }
+}
+
+function updateContextualSearchProgress(apiResponse) {
+    const progressContainer = document.getElementById('contextual-search-progress');
+    const progressBar = document.getElementById('contextual-search-progress-bar');
+    const status = document.getElementById('contextual-search-status');
+    const percent = document.getElementById('contextual-search-percent');
+
+    progressContainer.style.display = 'block';
+
+    if (typeof apiResponse.progress === 'number') {
+        const progress = Math.min(100, Math.max(0, apiResponse.progress));
+        progressBar.style.width = `${progress}%`;
+        percent.textContent = `${Math.round(progress)}%`;
+    }
+
+    const statusText = apiResponse.message
+        || apiResponse.detail
+        || apiResponse.stage
+        || apiResponse.phase
+        || apiResponse.step
+        || apiResponse.status;
+    if (statusText) status.textContent = String(statusText);
+
+    const activityFields = ['stage', 'phase', 'step', 'action', 'message', 'detail'];
+    let activityEntries = activityFields
+        .filter(key => typeof apiResponse[key] === 'string' && apiResponse[key].trim())
+        .map(key => `${formatApiFieldName(key)}: ${apiResponse[key].trim()}`);
+
+    if (activityEntries.length === 0 && typeof apiResponse.status === 'string') {
+        activityEntries = [`Status: ${apiResponse.status}`];
+    }
+
+    const activityText = [...new Set(activityEntries)]
+        .join(' · ');
+    appendContextualSearchActivity(activityText);
+
+    if (apiResponse.status === 'complete') {
+        progressContainer.classList.add('complete');
+        progressBar.style.width = '100%';
+        percent.textContent = '100%';
+    }
+}
+
+function resetContextualSearchProgress() {
+    const progressContainer = document.getElementById('contextual-search-progress');
+    progressContainer.style.display = 'block';
+    progressContainer.classList.remove('complete');
+    document.getElementById('contextual-search-progress-bar').style.width = '0%';
+    document.getElementById('contextual-search-status').textContent = 'Waiting for API response…';
+    document.getElementById('contextual-search-percent').textContent = '0%';
+    document.getElementById('contextual-search-activity').innerHTML = '';
+}
+
 async function renderContextualSearchResults() {
     const query = document.getElementById('query').value.trim();
     try {
+        resetContextualSearchProgress();
         const payload = {
             query: query
         };
@@ -930,6 +1006,9 @@ async function renderContextualSearchResults() {
             },
             body: JSON.stringify(payload)
         });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: Contextual search failed`);
+        }
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
         let buffer = '';
@@ -951,25 +1030,21 @@ async function renderContextualSearchResults() {
                     // infoDiv.innerHTML += "<pre>" + JSON.stringify(JSON.parse(data), null, 4) + "</pre>";
                     if (data === '[DONE]') {
                         console.log('Stream complete');
+                        appendContextualSearchActivity('[DONE]');
                         break;
                     }
                     try {
                         const obj = JSON.parse(data);
-                        // TODO: Update your UI incrementally here
-                        if (typeof obj.progress === 'number') {
-                            const progressBar = document.getElementById('contextual-search-progress-bar');
-                            const progressContainer = document.getElementById('contextual-search-progress');
-                            progressContainer.style.display = 'block';
-                            progressBar.style.width = `${obj.progress}%`;
-                        }
+                        updateContextualSearchProgress(obj);
                         if (obj.status === "complete") {
-                            const results = { pageNumber: 1, pageSize: obj.results.recommendations.length, itemCount: obj.results.recommendations.length, total: obj.results.recommendations.length, fonts: obj.results.recommendations };
+                            const recommendations = obj.results?.recommendations || [];
+                            const results = { pageNumber: 1, pageSize: recommendations.length, itemCount: recommendations.length, total: recommendations.length, fonts: recommendations };
                             console.log('Stream complete signal received', results);
                             await renderSearchResults(1, results);
-                            // Hide progress animation after results are rendered
                             document.getElementById('contextual-search-progress').style.display = 'none';
                         }
-                    } catch {
+                    } catch (error) {
+                        console.warn('Unable to parse contextual search event:', data, error);
                     }
                 }
             }
@@ -977,6 +1052,8 @@ async function renderContextualSearchResults() {
     }
     catch (error) {
         console.error('Error performing contextual search:', error);
+        document.getElementById('contextual-search-status').textContent = error.message;
+        appendContextualSearchActivity(`Error: ${error.message}`);
     }
 }
 async function getSearchResults(pageNum) {
