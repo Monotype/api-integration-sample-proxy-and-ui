@@ -566,7 +566,7 @@
                         <span class="nav-item-icon">🏠</span>
                         <span>Home</span>
                     </button>
-                    <button class="nav-item" data-view="library" aria-expanded="true">
+                    <button class="nav-item" data-view="library" aria-expanded="false">
                         <span class="nav-item-icon">📚</span>
                         <span>My Library</span>
                     </button>
@@ -576,7 +576,7 @@
                         <div>Failed to load folders</div>
                         <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
                     </div>
-                    <button class="nav-item" id="browse-fonts-link" data-view="browse">
+                    <button class="nav-item" id="browse-fonts-link" data-view="browse" aria-expanded="false">
                         <span class="nav-item-icon">🔍</span>
                         <span>Browse Fonts</span>
                     </button>
@@ -613,7 +613,7 @@
                             </button>
                         </form>
                     </div>
-                    <div id="search-results-list"></div>
+                    <div id="search-results-list" class="hidden"></div>
                 </div>
             </nav>
         </aside>
@@ -648,7 +648,8 @@
         let isAuthenticated = false;
         let collections = [];
         let collectionTrees = { personal: [], shared: [] };
-        let libraryTreesVisible = true;
+        let libraryTreesVisible = false;
+        let browseFontsVisible = false;
         let authStep = 'initial'; // 'initial', 'authenticating', 'authenticated', 'loading', 'ready'
 
         // DOM Elements
@@ -1478,6 +1479,24 @@
             isAuthenticated = true;
         }
 
+        function setLibraryTreesVisible(visible) {
+            libraryTreesVisible = visible;
+            foldersList.querySelectorAll('.collection-tree').forEach(tree => {
+                tree.classList.toggle('hidden', !visible);
+            });
+            document.querySelector('[data-view="library"]')?.setAttribute('aria-expanded', String(visible));
+        }
+
+        function setBrowseFontsVisible(visible) {
+            browseFontsVisible = visible;
+            const searchForm = document.getElementById('font-search-form-container');
+            const searchResults = document.getElementById('search-results-list');
+            searchForm.style.display = visible ? 'block' : 'none';
+            searchResults.classList.toggle('hidden', !visible);
+            document.querySelector('[data-view="browse"]')?.setAttribute('aria-expanded', String(visible));
+            if (visible) populateFontFilters();
+        }
+
         // Handle logout
         async function logout() {
             try {
@@ -1492,7 +1511,10 @@
             foldersList.innerHTML = '';
             collections = [];
             collectionTrees = { personal: [], shared: [] };
-            libraryTreesVisible = true;
+            setLibraryTreesVisible(false);
+            setBrowseFontsVisible(false);
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            document.querySelector('[data-view="home"]')?.classList.add('active');
         }
 
         // Navigation handling
@@ -1500,6 +1522,19 @@
             const navItem = e.target.closest('.nav-item[data-view]');
             if (navItem) {
                 const view = navItem.dataset.view;
+
+                if (navItem.classList.contains('active')) return;
+
+                if (view === 'home') {
+                    setLibraryTreesVisible(false);
+                    setBrowseFontsVisible(false);
+                } else if (view === 'library') {
+                    setLibraryTreesVisible(true);
+                    setBrowseFontsVisible(false);
+                } else if (view === 'browse') {
+                    setBrowseFontsVisible(true);
+                    setLibraryTreesVisible(false);
+                }
 
                 // Update active nav item
                 document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
@@ -1513,12 +1548,6 @@
                     welcomeView.classList.remove('hidden');
                     folderView.classList.add('hidden');
                     fontView.classList.add('hidden');
-                } else if (view === 'library') {
-                    libraryTreesVisible = !libraryTreesVisible;
-                    foldersList.querySelectorAll('.collection-tree').forEach(tree => {
-                        tree.classList.toggle('hidden', !libraryTreesVisible);
-                    });
-                    navItem.setAttribute('aria-expanded', String(libraryTreesVisible));
                 } else if (view === 'browse') {
                     pageTitle.textContent = 'Browse Fonts';
                     welcomeView.classList.add('hidden');
@@ -1559,30 +1588,6 @@
         // Error logout button in sidebar
         const errorLogoutBtn = document.getElementById('error-logout-btn');
         errorLogoutBtn.addEventListener('click', logout);
-
-        // Browse Fonts toggle
-        const browseFontsLink = document.getElementById('browse-fonts-link');
-        const fontSearchFormContainer = document.getElementById('font-search-form-container');
-        browseFontsLink.addEventListener('click', function (e) {
-            e.preventDefault();
-            if (fontSearchFormContainer.style.display === 'none') {
-                fontSearchFormContainer.style.display = 'block';
-                // Always repopulate filters when showing the form
-                populateFontFilters();
-                // Show search results if present
-                const searchFolder = document.getElementById('search-results-folder');
-                if (searchFolder) searchFolder.style.display = '';
-                const searchFontsContainer = document.getElementById('search-results-fonts');
-                if (searchFontsContainer) searchFontsContainer.style.display = '';
-            } else {
-                fontSearchFormContainer.style.display = 'none';
-                // Remove search results from sidebar
-                const searchFolder = document.getElementById('search-results-folder');
-                if (searchFolder) searchFolder.remove();
-                const searchFontsContainer = document.getElementById('search-results-fonts');
-                if (searchFontsContainer) searchFontsContainer.remove();
-            }
-        });
 
         // Font search form submission
         const fontSearchForm = document.getElementById('font-search-form');
