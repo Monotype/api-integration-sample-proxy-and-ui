@@ -546,6 +546,10 @@ async function showFontDetails(fontAssetId, fontName) {
         folderView.classList.add('hidden');
         fontView.classList.remove('hidden');
 
+        requestAnimationFrame(() => {
+            fontView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+
         // Show loading state
         fontLoading.classList.remove('hidden');
         fontDetails.innerHTML = '';
