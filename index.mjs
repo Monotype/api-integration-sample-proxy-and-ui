@@ -83,7 +83,7 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // Set to true in prod with HTTPS
+        secure: trustProxy,
         httpOnly: true,
         maxAge: SESSION_LIFESPAN,
     }
