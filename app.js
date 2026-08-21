@@ -35,6 +35,12 @@ function createTextElement(tagName, className, text) {
     return element;
 }
 
+function htmlFragmentToPlainText(value) {
+    const parsedDocument = new DOMParser().parseFromString(String(value ?? ''), 'text/html');
+    parsedDocument.querySelectorAll('script, style, template, noscript').forEach(element => element.remove());
+    return (parsedDocument.body.textContent || '').replace(/\s+/g, ' ').trim();
+}
+
 function appendDetailCard(container, label, value, extraClass = '') {
     const card = document.createElement('div');
     card.className = `detail-card${extraClass ? ` ${extraClass}` : ''}`;
@@ -692,7 +698,7 @@ function renderFontDetails(fontData) {
     metadataFields.forEach(([label, value]) => appendFontMetadata(label, value));
 
     if (fontData.description) {
-        appendFontMetadata('Description', fontData.description, { fullWidth: true });
+        appendFontMetadata('Description', htmlFragmentToPlainText(fontData.description), { fullWidth: true });
     }
 
     const tagGroups = [
