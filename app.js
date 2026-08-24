@@ -382,7 +382,7 @@ function renderFontItem(font, index, container, parentFontSet) {
 
     const fontName = document.createElement('span');
     fontName.className = 'name';
-    fontName.textContent = font.name || font.displayName || `Font ${index + 1}`;
+    fontName.textContent = htmlFragmentToPlainText(font.name || font.displayName || `Font ${index + 1}`);
 
     fontLink.appendChild(fontIcon);
     fontLink.appendChild(fontName);
@@ -608,7 +608,7 @@ function showCollection(collection) {
 // Show font details
 async function showFontDetails(fontAssetId, fontName) {
     try {
-        const displayedFontName = fontName || 'Unknown font';
+        const displayedFontName = htmlFragmentToPlainText(fontName || 'Unknown font');
         pageTitle.textContent = `Font: ${displayedFontName}`;
         fontTitle.textContent = displayedFontName;
 
@@ -659,13 +659,16 @@ function renderFontDetails(fontData) {
     fontDetails.replaceChildren();
 
     if (fontData.sample) {
+        const displayedFontName = htmlFragmentToPlainText(
+            fontData.friendlyName || fontData.name || 'selected font'
+        );
         const sample = document.createElement('div');
         sample.className = 'font-sample';
         sample.appendChild(createTextElement('div', 'detail-label', 'Official Font Sample'));
         const sampleImage = document.createElement('img');
         sampleImage.className = 'font-sample-image';
         sampleImage.src = fontData.sample;
-        sampleImage.alt = `Font sample for ${fontData.friendlyName || fontData.name || 'selected font'}`;
+        sampleImage.alt = `Font sample for ${displayedFontName}`;
         sampleImage.addEventListener('error', () => {
             sample.remove();
         }, { once: true });
@@ -686,7 +689,7 @@ function renderFontDetails(fontData) {
     fontDetails.appendChild(downloadSection);
 
     const metadataFields = [
-        ['Font Name', fontData.friendlyName || fontData.name || 'Unknown'],
+        ['Font Name', htmlFragmentToPlainText(fontData.friendlyName || fontData.name || 'Unknown')],
         ['PostScript Name', fontData.psName || 'Unknown'],
         ['Font ID', fontData.fontId || fontData.id || 'Unknown'],
         ['Font Family', fontData.family || 'Unknown'],
@@ -1174,7 +1177,9 @@ async function renderSearchResults(pageNum, result, generation = searchRequestGe
                 fontIcon.textContent = '📝';
                 const fontName = document.createElement('span');
                 fontName.className = 'name';
-                fontName.textContent = font.name || font.friendlyName || `Font ${idx + 1}`;
+                fontName.textContent = htmlFragmentToPlainText(
+                    font.name || font.friendlyName || `Font ${idx + 1}`
+                );
                 fontLink.appendChild(fontIcon);
                 fontLink.appendChild(fontName);
                 fontItem.appendChild(fontLink);
