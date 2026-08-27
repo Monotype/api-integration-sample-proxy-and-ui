@@ -17,6 +17,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// Prevent API-controlled strings in JSON responses from being interpreted as HTML.
+app.set('json escape', true);
 const port = process.env.PORT || 8081;
 const trustProxy = process.env.TRUST_PROXY === 'true';
 if (trustProxy) app.set('trust proxy', 1);
