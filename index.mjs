@@ -1,13 +1,13 @@
 import express from 'express';
 import path from 'path';
 import session from 'express-session';
-import jwt from 'jsonwebtoken';
 import { createClient } from 'redis';
 import { RedisStore } from 'connect-redis';
 import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import * as readline from 'readline';
+import { randomUUID } from 'node:crypto';
 
 // Load environment variables
 dotenv.config();
@@ -17,7 +17,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+// Prevent API-controlled strings in JSON responses from being interpreted as HTML.
+app.set('json escape', true);
 const port = process.env.PORT || 8081;
+const trustProxy = process.env.TRUST_PROXY === 'true';
+if (trustProxy) app.set('trust proxy', 1);
 
 const API_DOMAIN = process.env.API_DOMAIN || 'pp-api.monotype.com';
 const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID;
@@ -26,7 +30,33 @@ const AUTH0_SCOPE = 'openid email profile';
 const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const SESSION_LIFESPAN = 24 * 60 * 60 * 1000; // 24 hours in ms
+const TOKEN_REFRESH_LOCK_TTL_MS = 30_000;
+const TOKEN_REFRESH_WAIT_TIMEOUT_MS = 20_000;
+const TOKEN_REFRESH_POLL_MS = 100;
+const TOKEN_REFRESH_REQUEST_TIMEOUT_MS = 15_000;
 const tokenUrl = `https://${API_DOMAIN}/v2/oauth/token`;
+const configuredRedirectOrigins = new Set(
+    (process.env.ALLOWED_REDIRECT_ORIGINS || '')
+        .split(',')
+        .map(origin => origin.trim())
+        .filter(Boolean)
+        .map(origin => new URL(origin).origin)
+);
+const DOWNLOAD_CONTENT_TYPES = new Set([
+    'application/octet-stream',
+    'application/force-download',
+    'application/x-download',
+    'application/zip',
+    'application/x-zip-compressed',
+    'binary/octet-stream',
+    'application/font-sfnt',
+    'application/vnd.ms-fontobject',
+    'application/x-font-opentype',
+    'application/x-font-truetype',
+    'application/x-font-ttf',
+    'application/x-font-woff',
+    'application/x-font-woff2'
+]);
 
 // Validate required environment variables
 if (!AUTH0_CLIENT_SECRET) {
@@ -55,7 +85,7 @@ app.use(session({
     resave: false,
     saveUninitialized: false,
     cookie: {
-        secure: false, // Set to true in prod with HTTPS
+        secure: trustProxy,
         httpOnly: true,
         maxAge: SESSION_LIFESPAN,
     }
@@ -64,6 +94,24 @@ app.use(session({
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+    const scriptSource = req.path === '/app.html' ? "'self'" : "'self' 'unsafe-inline'";
+    res.setHeader('Content-Security-Policy', [
+        "default-src 'self'",
+        `script-src ${scriptSource}`,
+        "style-src 'self' 'unsafe-inline'",
+        "connect-src 'self'",
+        "img-src 'self' data: blob: https:",
+        "font-src 'self' data:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+        "form-action 'self'"
+    ].join('; '));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    next();
+});
 // 2️⃣ Middleware for non-API requests
 app.use((req, res, next) => {
     // Skip API routes
@@ -73,10 +121,6 @@ app.use((req, res, next) => {
     if (req.path.endsWith('app.css')) return next();
     if (req.path.endsWith('app.js')) return next();
     return res.sendStatus(404);
-});
-app.use((req, res, next) => {
-    console.log('X-Forwarded-Proto:', req.header('X-Forwarded-Proto'));
-    next();
 });
 // Serve static files
 app.use(express.static(path.join(__dirname)));
@@ -90,20 +134,32 @@ app.get('/api/authorize', (req, res) => {
         return res.status(400).json({ error: 'redirect_uri parameter is required' });
     }
 
+    if (!isAllowedRedirectUri(req, redirectUri)) {
+        return res.status(400).json({ error: 'redirect_uri is not allowed' });
+    }
+
     let authUrl = `https://${API_DOMAIN}/v2/oauth/authorize` +
         `?response_type=code` +
         `&client_id=${AUTH0_CLIENT_ID}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
         `&scope=${encodeURIComponent(AUTH0_SCOPE)}`;
     if (req?.query?.accessToken) {
-        authUrl += `&accessKey=${encodeURIComponent(req.query.accessToken)}`;
+        const accessKey = String(req.query.accessToken);
+        if (!/^org_[A-Za-z0-9]{16,}$/.test(accessKey)) {
+            return res.status(400).json({ error: 'Invalid access key format' });
+        }
+        authUrl += `&accessKey=${encodeURIComponent(accessKey)}`;
     }
-    console.log('Redirecting to Auth0:', authUrl);
+    console.log('Redirecting to OAuth provider');
     res.redirect(authUrl);
 });
 
 app.post('/api/token', async (req, res) => {
     try {
+        if (!isAllowedRedirectUri(req, req.body.redirect_uri)) {
+            return res.status(400).json({ error: 'redirect_uri is not allowed' });
+        }
+
         const body = {
             grant_type: 'authorization_code',
             code: req.body.code,
@@ -121,15 +177,14 @@ app.post('/api/token', async (req, res) => {
         });
 
         const tokenData = await response.json();
-        console.log("Response from token URL:", tokenData);
 
         if (tokenData.access_token) {
             const accessToken = tokenData.access_token;
             const idToken = tokenData.id_token;
             const refreshToken = tokenData.refresh_token;
-            const expiresIn = tokenData.expires_in || 3600;
+            const expiresIn = getTokenLifetime(tokenData.expires_in);
 
-            const sessionId = `session:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+            const sessionId = `session:${randomUUID()}`;
 
             // Store tokens & metadata in Redis
             await redisClient.setEx(`${sessionId}:access_token`, expiresIn, accessToken);
@@ -146,7 +201,7 @@ app.post('/api/token', async (req, res) => {
             req.session.authenticated = true;
             req.session.tokenExpiry = new Date(Date.now() + expiresIn * 1000);
 
-            console.log(`Tokens stored in Redis with session ID: ${sessionId}`);
+            console.log('OAuth tokens stored for authenticated session');
             res.json({
                 success: true,
                 message: "Token exchange successful",
@@ -202,7 +257,7 @@ app.post('/api/logout', async (req, res) => {
             await redisClient.del(`${req.session.sessionId}:id_token`);
             await redisClient.del(`${req.session.sessionId}:refresh_token`);
             await redisClient.del(`${req.session.sessionId}:metadata`);
-            console.log(`Cleaned up Redis data for session: ${req.session.sessionId}`);
+            console.log('Cleaned up Redis data for session');
         } catch (error) {
             console.error('Error cleaning up Redis data:', error);
         }
@@ -228,57 +283,23 @@ app.use('/api/proxy', async (req, res) => {
         return res.status(405).json({ error: 'Method Not Allowed', message: `HTTP method ${req.method} is not allowed.` });
     }
 
-    console.log(`${sanitizedMethod} request to proxy:`, proxyUrl);
+    console.log('Proxy request', { method: sanitizedMethod });
 
     let accessToken = null;
     if (req.session.sessionId) {
         try {
-            accessToken = await redisClient.get(`${req.session.sessionId}:access_token`);
-
-            if (!accessToken || isTokenExpired(accessToken)) {
-                const refreshToken = await redisClient.get(`${req.session.sessionId}:refresh_token`);
-                if (refreshToken) {
-                    // Attempt to refresh token from Auth0
-                    const refreshBody = {
-                        grant_type: 'refresh_token',
-                        client_id: AUTH0_CLIENT_ID,
-                        client_secret: AUTH0_CLIENT_SECRET,
-                        refresh_token: refreshToken
-                    };
-                    const formBody = new URLSearchParams(refreshBody).toString();
-                    const refreshResponse = await fetch(tokenUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: formBody
-                    });
-                    const refreshData = await refreshResponse.json();
-                    console.log('Refresh token response:', refreshData);
-
-                    if (refreshData.access_token) {
-                        accessToken = refreshData.access_token;
-                        const decoded = jwt.decode(accessToken);
-                        let expiresIn = refreshData.expires_in || 3600;
-                        if (decoded && decoded.exp) {
-                            const currentTime = Math.floor(Date.now() / 1000);
-                            expiresIn = decoded.exp - currentTime;
-                        }
-                        await redisClient.setEx(`${req.session.sessionId}:access_token`, expiresIn, accessToken);
-
-                        req.session.tokenExpiry = new Date(Date.now() + expiresIn * 1000);
-
-                        if (refreshData.refresh_token) {
-                            await redisClient.setEx(`${req.session.sessionId}:refresh_token`, expiresIn * 24, refreshData.refresh_token);
-                        }
-                    } else {
-                        return res.status(401).json({ error: 'Authentication failed', message: 'Unable to refresh expired token' });
-                    }
-                } else {
-                    return res.status(401).json({ error: 'Authentication required', message: 'No valid tokens available. Please log in again.' });
-                }
+            const tokenState = await getSessionAccessToken(req.session.sessionId);
+            accessToken = tokenState.accessToken;
+            if (tokenState.refreshed) {
+                req.session.tokenExpiry = new Date(Date.now() + tokenState.expiresIn * 1000);
             }
         } catch (error) {
+            if (error.statusCode === 401) {
+                return res.status(401).json({ error: 'Authentication required', message: error.message });
+            }
+            if (error.statusCode === 503) {
+                return res.status(503).json({ error: 'Authentication temporarily unavailable', message: error.message });
+            }
             console.error('Error getting access token from Redis:', error);
             return res.status(500).json({ error: 'Session error', message: 'Failed to retrieve authentication tokens' });
         }
@@ -300,27 +321,34 @@ app.use('/api/proxy', async (req, res) => {
         });
 
         // Check if this is a download request that returns binary data
-        const contentType = response.headers.get('content-type');
-        const isDownload = subPath.includes('/download') ||
-            contentType?.includes('application/octet-stream') ||
-            contentType?.includes('font/') ||
-            contentType?.includes('application/font');
+        const contentType = response.headers.get('content-type') || '';
+        const normalizedContentType = contentType.split(';', 1)[0].trim().toLowerCase();
+        const hasDownloadContentType = normalizedContentType.startsWith('font/') ||
+            normalizedContentType.startsWith('application/font') ||
+            normalizedContentType.startsWith('application/x-font-') ||
+            DOWNLOAD_CONTENT_TYPES.has(normalizedContentType);
+        const isDownload = subPath.includes('/download') || hasDownloadContentType;
 
         if (isDownload) {
+            if (!response.ok) {
+                response.body?.destroy();
+                return res.status(response.status).json({ error: 'Font download failed' });
+            }
+            if (!hasDownloadContentType) {
+                response.body?.destroy();
+                return res.status(502).json({ error: 'Unexpected font download content type' });
+            }
+
             // Handle binary/file downloads
             const buffer = await response.buffer();
 
-            // Copy relevant headers
-            if (response.headers.get('content-disposition')) {
-                res.set('content-disposition', response.headers.get('content-disposition'));
-            }
-            if (contentType) {
-                res.set('content-type', contentType);
-            }
-
-            res.status(response.status).send(buffer);
+            const downloadFilename = getDownloadFilename(response.headers.get('content-disposition'));
+            res.set('content-disposition', downloadFilename
+                ? `attachment; filename="${downloadFilename}"`
+                : 'attachment');
+            res.set('content-type', normalizedContentType);
+            res.status(response.status).end(buffer);
         } else {
-            const contentType = response.headers.get('content-type') || '';
             if (contentType.includes('text/event-stream')) {
                 // Set up streaming response to browser
                 res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -413,17 +441,161 @@ app.listen(port, () => {
     console.log('  GET  /health        - Health check');
 });
 
-function isTokenExpired(token) {
+function isAllowedRedirectUri(req, value) {
     try {
-        const decoded = jwt.decode(token);
-        if (!decoded || !decoded.exp) return true;
-
-        const currentTime = Math.floor(Date.now() / 1000);
-        const bufferTime = 60;
-
-        return decoded.exp <= (currentTime + bufferTime);
-    } catch (error) {
-        console.error('Error decoding token:', error);
-        return true;
+        const redirectUrl = new URL(String(value));
+        if (!['http:', 'https:'].includes(redirectUrl.protocol)) return false;
+        if (configuredRedirectOrigins.size > 0) {
+            return configuredRedirectOrigins.has(redirectUrl.origin);
+        }
+        const requestHost = req.get('host');
+        if (!requestHost) return false;
+        const requestOrigin = new URL(`${req.protocol}://${requestHost}`).origin;
+        return redirectUrl.origin === requestOrigin;
+    } catch {
+        return false;
     }
+}
+
+function getTokenLifetime(value) {
+    const lifetime = Number(value);
+    return Number.isFinite(lifetime) && lifetime > 0 ? Math.max(1, Math.floor(lifetime)) : 3600;
+}
+
+function createStatusError(statusCode, message) {
+    const error = new Error(message);
+    error.statusCode = statusCode;
+    return error;
+}
+
+function delay(milliseconds) {
+    return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+async function releaseRefreshLock(lockKey, lockValue) {
+    const releaseIfOwner = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+            return redis.call("del", KEYS[1])
+        end
+        return 0
+    `;
+    await redisClient.eval(releaseIfOwner, {
+        keys: [lockKey],
+        arguments: [lockValue]
+    });
+}
+
+async function refreshSessionAccessToken(sessionId, accessTokenKey) {
+    const refreshTokenKey = `${sessionId}:refresh_token`;
+    const refreshToken = await redisClient.get(refreshTokenKey);
+    if (!refreshToken) {
+        throw createStatusError(401, 'No valid tokens available. Please log in again.');
+    }
+
+    const refreshBody = new URLSearchParams({
+        grant_type: 'refresh_token',
+        client_id: AUTH0_CLIENT_ID,
+        client_secret: AUTH0_CLIENT_SECRET,
+        refresh_token: refreshToken
+    }).toString();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TOKEN_REFRESH_REQUEST_TIMEOUT_MS);
+
+    try {
+        const response = await fetch(tokenUrl, {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: refreshBody
+        });
+        const refreshData = await response.json();
+        if (!response.ok || !refreshData.access_token) {
+            throw createStatusError(401, 'Unable to refresh expired token. Please log in again.');
+        }
+
+        const expiresIn = getTokenLifetime(refreshData.expires_in);
+        const transaction = redisClient.multi();
+        transaction.setEx(accessTokenKey, expiresIn, refreshData.access_token);
+        if (refreshData.refresh_token) {
+            transaction.setEx(refreshTokenKey, expiresIn * 24, refreshData.refresh_token);
+        }
+        await transaction.exec();
+
+        return { accessToken: refreshData.access_token, expiresIn, refreshed: true };
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw createStatusError(503, 'Token refresh timed out. Please try again.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function getSessionAccessToken(sessionId) {
+    const accessTokenKey = `${sessionId}:access_token`;
+    const lockKey = `${sessionId}:refresh_lock`;
+    const deadline = Date.now() + TOKEN_REFRESH_WAIT_TIMEOUT_MS;
+
+    while (Date.now() < deadline) {
+        const [accessToken, accessTokenTtl] = await Promise.all([
+            redisClient.get(accessTokenKey),
+            redisClient.ttl(accessTokenKey)
+        ]);
+        if (accessToken && accessTokenTtl > 60) {
+            return { accessToken, expiresIn: accessTokenTtl, refreshed: false };
+        }
+
+        const lockValue = randomUUID();
+        const acquired = await redisClient.set(lockKey, lockValue, {
+            NX: true,
+            PX: TOKEN_REFRESH_LOCK_TTL_MS
+        });
+        if (acquired) {
+            try {
+                const [currentToken, currentTokenTtl] = await Promise.all([
+                    redisClient.get(accessTokenKey),
+                    redisClient.ttl(accessTokenKey)
+                ]);
+                if (currentToken && currentTokenTtl > 60) {
+                    return { accessToken: currentToken, expiresIn: currentTokenTtl, refreshed: false };
+                }
+                return await refreshSessionAccessToken(sessionId, accessTokenKey);
+            } finally {
+                try {
+                    await releaseRefreshLock(lockKey, lockValue);
+                } catch (error) {
+                    console.error('Failed to release token refresh lock:', error);
+                }
+            }
+        }
+
+        await delay(TOKEN_REFRESH_POLL_MS);
+    }
+
+    throw createStatusError(503, 'Token refresh is already in progress. Please try again.');
+}
+
+function getDownloadFilename(contentDisposition) {
+    if (!contentDisposition) return null;
+
+    const encodedFilename = contentDisposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i)?.[1];
+    const plainFilename = contentDisposition.match(/filename\s*=\s*(?:"([^"]+)"|([^;]+))/i);
+    let filename = encodedFilename || plainFilename?.[1] || plainFilename?.[2];
+    if (!filename) return null;
+
+    if (encodedFilename) {
+        try {
+            filename = decodeURIComponent(filename);
+        } catch {
+            return null;
+        }
+    }
+
+    const sanitizedFilename = filename
+        .trim()
+        .replace(/[^\x20-\x7E]/g, '_')
+        .replace(/["\\/]/g, '_')
+        .slice(0, 180);
+    return sanitizedFilename || null;
 }

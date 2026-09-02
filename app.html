@@ -31,16 +31,37 @@
                         <span class="nav-item-icon">🏠</span>
                         <span>Home</span>
                     </button>
-                    <button class="nav-item" id="browse-fonts-link" data-view="browse">
+                    <button class="nav-item" data-view="library" aria-expanded="false" aria-controls="folders-list">
+                        <span class="nav-item-icon">📚</span>
+                        <span>My Library</span>
+                        <span class="nav-item-caret" aria-hidden="true"></span>
+                    </button>
+                    <div id="folders-loading" class="loading">Loading folders...</div>
+                    <div id="folders-list" class="folders-list hidden"></div>
+                    <div id="folders-error" class="loading hidden folders-error-text">
+                        <div>Failed to load folders</div>
+                        <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
+                    </div>
+                    <button class="nav-item" id="browse-fonts-link" data-view="browse" aria-expanded="false"
+                        aria-controls="font-search-form-container search-results-list">
                         <span class="nav-item-icon">🔍</span>
-                        <span>Browse Fonts</span>
+                        <span>Discover Fonts</span>
+                        <span class="nav-item-caret" aria-hidden="true"></span>
                     </button>
                     <div id="font-search-form-container" class="font-search-container">
                         <form id="contextual-search-form">
                             <label for="query" class="form-label">Contextual Search</label>
                             <input id="query" name="query" type="text" class="form-input">
-                            <div id="contextual-search-progress" class="contextual-search-progress">
-                                <div id="contextual-search-progress-bar" class="contextual-search-progress-bar"></div>
+                            <div id="contextual-search-progress" class="contextual-search-progress" role="status"
+                                aria-live="polite">
+                                <div class="contextual-search-progress-header">
+                                    <span id="contextual-search-status">Waiting for API response…</span>
+                                    <span id="contextual-search-percent">0%</span>
+                                </div>
+                                <div class="contextual-search-progress-track">
+                                    <div id="contextual-search-progress-bar" class="contextual-search-progress-bar"></div>
+                                </div>
+                                <div id="contextual-search-activity" class="contextual-search-activity"></div>
                             </div>
                             <button id="contextual-search-btn" type="submit" class="search-button" disabled>
                                 Search
@@ -67,15 +88,7 @@
                             </button>
                         </form>
                     </div>
-                </div>
-                <div class="nav-section">
-                    <div class="nav-section-title">Collections</div>
-                    <div id="folders-loading" class="loading">Loading folders...</div>
-                    <div id="folders-list" class="folders-list hidden"></div>
-                    <div id="folders-error" class="loading hidden folders-error-text">
-                        <div>Failed to load folders</div>
-                        <button id="error-logout-btn" class="error-logout-btn">Logout & Reconnect</button>
-                    </div>
+                    <div id="search-results-list" class="hidden"></div>
                 </div>
             </nav>
         </aside>
